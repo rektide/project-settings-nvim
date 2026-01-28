@@ -1,4 +1,4 @@
-please help me define this project. i want to make `nvim-project-config`, a library for neovim that loads configuration based on the current project. so if we are in ~/src/rad-project/test , it will do three things:
+please help me define and architect this project. i want to make `nvim-project-config`, a library for neovim that loads configuration based on the current project. so if we are in ~/src/rad-project/test , it will do three things:
 
 1. find the project name (`rad`), using a configurable directory walking strategy, falling back to cwd. the default strategy walks directories up. it is configured with matchers that look for .git folder.
 2. and it will load configuration from a config directory using that file name. configuration comes in many ways. the config directory is also a configurable parameter, either a string or function. generally most configuration should allow for explicit setting, or a function that can generate the value. by default we have a function that returns vim.fn.stdpath("config") plus `projects`. there are various types of config, directories, lua, nvim, json. we have a pluggable configuration loader we run, providing our context object with our config directory & project name to it. this finds files to execute. finder is an configurable function passed a context object (of the project name and config directory), an object used throughout execution. the default finder is composed of a simpler finder, called twice: once for the `.` directory (meaning hte project config directory) and once for the project-name subdirectory thereof. the simpler finder also has a file-name matcher, which by default looks for project-name.lua .vim or .json; the same matcher is used for both simple matchers by the combined finder.
@@ -21,3 +21,7 @@ please help me define this project. i want to make `nvim-project-config`, a libr
 - we want a run through of the file structure
 - a longer review of the architecture & detailing each piece
   - mermaid diagrams suggested
+
+and whatever else you see fit!
+
+start with your first pass. write it to a file. then discuss, and help figure out how we architect and shape this topic. you have the floor for discussion here; what areas topics clarity or refinements might we talk about to advance this document & architecture?
