@@ -1,0 +1,22 @@
+{
+	"name": "nvim-project-config",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/rektide/nvim-project-config.git"
+	},
+	"keywords": [],
+	"author": "rektide de la faye",
+	"license": "MIT",
+	"type": "module",
+	"bugs": {
+		"url": "https://github.com/rektide/nvim-project-config/issues"
+	},
+	"homepage": "https://github.com/rektide/nvim-project-config#readme",
+	"module": "nvim-project-config.js"
+}
