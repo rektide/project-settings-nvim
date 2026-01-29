@@ -25,3 +25,13 @@ please help me define and architect this project. i want to make `nvim-project-c
 and whatever else you see fit!
 
 start with your first pass. write it to a file. then discuss, and help figure out how we architect and shape this topic. you have the floor for discussion here; what areas topics clarity or refinements might we talk about to advance this document & architecture?
+
+# resolved / additional decisions
+
+- loading / watching configuration options:
+  - option to do nothing at startup
+  - option to watch for directory changes
+  - option to watch for buffer changes
+- we want to cache all found results. we need to rescan on execution.
+- we use coroutines to
+- context is mutable. it starts as the config, with additional computed elements attached.
