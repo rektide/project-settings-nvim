@@ -1,0 +1,91 @@
+--- JSON file executor for nvim-project-config
+--- @module nvim-project-config.executors.json
+
+--- Write ctx.json to the last project-named JSON file
+--- @param ctx table pipeline context with json data and _last_project_json path
+--- @return boolean success
+local function write_json(ctx)
+  if not ctx._last_project_json then
+    return false
+  end
+
+  local raw_json = {}
+  for k, v in pairs(ctx.json or {}) do
+    raw_json[k] = v
+  end
+  local encoded = vim.json.encode(raw_json)
+
+  local ok, err = pcall(function()
+    local fd = assert(io.open(ctx._last_project_json, "w"))
+    fd:write(encoded)
+    fd:close()
+  end)
+  return ok
+end
+
+--- Check if file matches project name (basename or parent dir)
+--- @param file_path string
+--- @param project_name string
+--- @return boolean
+local function matches_project_name(file_path, project_name)
+  if not project_name then
+    return false
+  end
+  local basename = vim.fn.fnamemodify(file_path, ":t:r")
+  if basename == project_name then
+    return true
+  end
+  local parent = vim.fn.fnamemodify(file_path, ":h:t")
+  return parent == project_name
+end
+
+--- Execute a JSON config file
+--- @param ctx table pipeline context
+--- @param file_path string absolute path to the JSON file
+local function json_executor(ctx, file_path)
+  local content
+
+  local fd, err = io.open(file_path, "r")
+  if not fd then
+    error("Failed to read JSON file: " .. file_path .. " - " .. tostring(err))
+  end
+  content = fd:read("*a")
+  fd:close()
+
+  local ok, parsed = pcall(vim.json.decode, content)
+  if not ok then
+    error("Failed to parse JSON: " .. file_path .. " - " .. tostring(parsed))
+  end
+
+  local function deep_merge_into(target, source)
+    for k, v in pairs(source) do
+      if type(v) == "table" and type(target[k]) == "table" then
+        deep_merge_into(target[k], v)
+      else
+        target[k] = v
+      end
+    end
+  end
+
+  if ctx.json then
+    deep_merge_into(ctx.json, parsed)
+  else
+    ctx.json = parsed
+  end
+
+  if matches_project_name(file_path, ctx.project_name) then
+    ctx._last_project_json = file_path
+  end
+
+  if ctx.file_cache then
+    local cached = ctx.file_cache._cache and ctx.file_cache._cache[file_path]
+    if cached then
+      cached.json = parsed
+    end
+  end
+end
+
+return {
+  executor = json_executor,
+  write_json = write_json,
+}
