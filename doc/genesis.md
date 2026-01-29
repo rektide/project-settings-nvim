@@ -28,10 +28,48 @@ start with your first pass. write it to a file. then discuss, and help figure ou
 
 # resolved / additional decisions
 
+based off initial findings, the following design decisions are to be encorporated:
+
+- callback based usage patterns for async behaviors
 - loading / watching configuration options:
   - option to do nothing at startup
-  - option to watch for directory changes
-  - option to watch for buffer changes
-- we want to cache all found results. we need to rescan on execution.
-- we use coroutines to
-- context is mutable. it starts as the config, with additional computed elements attached.
+  - option to watch for directory changes (and clear/ re-run settings on change)
+  - option to watch for buffer changes (and clear/ re-run settings on change)
+- two caches:
+  - directory cache that wraps plenary.ls_async, and which stores all results. walking always reads-through this cache.
+  - a file cache, holding file contents on read
+    - file name, content, modified time all kept on file
+    - file cache is write through, writes to cache go to files
+    - items in file cache can have additional data attached to them, as .json field for the lua tables representing json.
+    - writer to file cache is responsible for writing both .json and raw file data
+    - reads from file cache, if file is modified, must eliminate any additional fields (or replace object entirely with a fresh one)
+  - both caches use modified file time strategy to check if they need to regenerate the cache before yielding results.
+- context is mutable. context is just the config. is mutable.
+- pipeline is now by default these stages: walk, detect root, find files, execute files.
+  - pipeline is an arbitrary pluggable system. could be other configs.
+  - each stage is invoked with context, one input item, and it's stage number
+  - each stage calls the next stage each time it has an output
+  - question: how do we detect when pipeline is done?
+- general philosophy of run everything, merge, with last file / late comer winning
+- walk walks upwards, from root directory towards the project, yielding each directory as a project
+  - has optional matcher, but usually empty: just fire for each directory as we walk up to current directory
+  - alternate unused implementation walks down until it finds git, project root finder
+- detect root passes through all data, but runs matcher.
+  - sets a single project root on config/context when matches
+  - has an override setting, default off, to override existing project root
+- find directories looks in `vim.fn.stdpath("config")` for the project name
+- default executor is a router that routes to file-type specific executors, which register the file types they support: .vim .lua .json
+- vim/lua executor just run the vim/lua
+- json executor keeps track of all json files seen.
+  - it merges json together, with most recent file taking priority.
+  - writes go to the project root json, create if needed.
+- project names can be nested. this is primarily to support repositories with sub-packages. repo/package is recommended. additional depth is ok but discouraged.
+- find_files is called multiple times, with context and project name. generates multiple results.
+- a variety of composable tools are available for files: a 'not' filter, such as for
+- clear resets only some elements of context:
+  - project root (let get re-found)
+  - synthesized json object
+  - question: what actually happens? hardcoded clear? event? recreate pipeline elements afresh?
+- matcher processor takes string/single item, string, matcher/regex, or function. or's them together. `and` and `not` utility wrappers also provided.
+
+
