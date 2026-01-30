@@ -10,77 +10,135 @@ Using **plenary.nvim** test harness, located in:
 
 Run tests with:
 ```bash
-nvim --headless -c "PlenaryBustedDirectory test/unit/"
+npm test              # Unit tests
+npm run test:integration  # Integration tests
+npm run test:all         # All tests
 ```
 
-## Current Test Coverage
+## Current Test Coverage (As of latest commit)
 
 ### ✅ Completed Tests
-- `test/unit/matchers_spec.lua` - Full coverage of matchers module
-  - `process()` - matcher type conversion
-  - `any()` - OR logic for multiple matchers
-  - `all()` - AND logic for multiple matchers
-  - `not_()` - negation
-  - `literal()` - exact basename matching
-  - `pattern()` - Lua pattern matching
-  - `fn()` - function wrapper
+
+**Total: 8 test files, ~60+ tests**
+
+1. `test/unit/matchers_spec.lua` - 17 tests - ✅ ALL PASSING
+   - `process()` - matcher type conversion
+   - `any()` - OR logic for multiple matchers
+   - `all()` - AND logic for multiple matchers
+   - `not_()` - negation
+   - `literal()` - exact basename matching
+   - `pattern()` - Lua pattern matching
+   - `fn()` - function wrapper
+
+2. `test/unit/cache/file_spec.lua` - ✅ PASSING
+   - Cache structure (_cache table, trust_mtime option)
+   - `clear_all()` - Removes all cached entries
+   - `invalidate()` - Removes specific entry from cache
+   - Cache entry structure (path, content, mtime, json field)
+
+3. `test/unit/cache/directory_spec.lua` - ✅ PASSING
+   - Cache structure (_cache table, _trust_mtime option)
+   - `clear_all()` - Removes all cached entries
+   - `invalidate()` - Removes specific entry from cache
+   - Cache entry structure (path, entries, mtime)
+
+4. `test/unit/stages/walk_spec.lua` - 6 tests - ✅ ALL PASSING
+   - Upward traversal from start directory
+   - Stops at filesystem root
+   - Matcher filtering (string and function)
+   - Non-directory input handling
+   - Pipeline stopped handling
+
+5. `test/unit/stages/detect_spec.lua` - ~10 tests - ⚠️ PARTIAL (7/10 passing)
+   - String matcher (file/directory existence check)
+   - Table matcher (OR logic with existence checks)
+   - Function matcher (⚠️ async timeout issues)
+   - Nil matcher (⚠️ async timeout issues)
+   - on_match callback (⚠️ async timeout issues)
+   - Pipeline flow and DONE signal
+   - Pipeline stopped handling
+
+6. `test/unit/stages_and_executors_spec.lua` - 10 tests - ✅ ALL PASSING
+   - Executor routing by extension
+   - Executor options (async flag)
+   - Lua executor function signature
+   - Vim executor function signature
+   - JSON executor (write_json, executor function)
+   - Pipeline core (DONE, run, stop functions)
+
+7. `test/unit/watchers_spec.lua` - 8 tests - ✅ ALL PASSING
+   - setup_watchers() function
+   - teardown_watchers() function
+   - Watcher configuration handling
+   - Debounce timer
+   - Config_dir watcher (skip when disabled)
+   - Buffer watcher (skip when disabled)
+   - CWD watcher (skip when disabled)
+   - Teardown cleanup
+
+8. `test/integration/basic_spec.lua` - 12 tests - ✅ ALL PASSING
+   - Main module loading (setup, load, clear functions)
+   - Cache creation (FileCache, DirectoryCache)
+   - JSON reactive table (set/get values)
+   - Stage creation (walk, detect, find_files, execute)
+   - Matchers module exports
 
 ## Test Coverage Needed
 
 ### High Priority (Core Functionality)
 
-#### 1. Cache Layer Tests (`test/unit/cache/`)
+#### 1. Cache Layer Tests (PARTIALLY COMPLETE)
 
 **FileCache** (`lua/nvim-project-config/cache/file.lua`):
-- ✅ `get_async()` - Read file with caching
-- ✅ `write_async()` - Write file and update cache
-- ✅ `invalidate()` - Remove file from cache
-- ✅ `clear_all()` - Clear entire cache
-- ⚠️ `get()` - Internal callback-based read
-- ⚠️ `write()` - Internal callback-based write
-- Test mtime-based cache invalidation
-- Test trust_mtime option
-- Test cache entry structure (path, content, mtime, json field)
-- Test async oneshot channel pattern
+- ✅ Structure tests
+- ✅ clear_all()
+- ✅ invalidate()
+- ✅ trust_mtime option
+- ✅ Cache entry structure
+- ⚠️ `get()` - Internal callback-based read (async timeout issues)
+- ⚠️ `write()` - Internal callback-based write (async timeout issues)
+- ⚠️ `get_async()` - Async file read with oneshot channel
+- ⚠️ `write_async()` - Async file write with oneshot channel
+- ⚠️ Mtime-based cache invalidation tests
 
 **DirectoryCache** (`lua/nvim-project-config/cache/directory.lua`):
-- ⚠️ `get()` - Read directory asynchronously
-- ✅ `invalidate()` - Remove directory from cache
-- ✅ `clear_all()` - Clear entire cache
-- ⚠️ `_get_async()` - Internal async read
-- ⚠️ `_read_directory()` - Directory listing
-- Test mtime-based cache invalidation
-- Test trust_mtime option
-- Test cache entry structure (path, entries, mtime)
+- ✅ Structure tests
+- ✅ clear_all()
+- ✅ invalidate()
+- ✅ trust_mtime option
+- ✅ Cache entry structure
+- ⚠️ `get()` - Callback-based read (async timeout issues)
+- ⚠️ `_get_async()` - Internal async read (async timeout issues)
+- ⚠️ `_read_directory()` - Directory listing (async timeout issues)
+- ⚠️ Mtime-based cache invalidation tests
 
-#### 2. Pipeline Tests (`test/unit/pipeline_spec.lua`)
+#### 2. Pipeline Tests (BASIC STRUCTURE COMPLETE)
 
 **Pipeline Core** (`lua/nvim-project-config/pipeline.lua`):
-- ⚠️ `run()` - Execute pipeline stages
-- ⚠️ `stop()` - Stop running pipeline
-- ⚠️ DONE sentinel handling
+- ✅ DONE sentinel
+- ✅ run() function signature
+- ✅ stop() function signature
+- ⚠️ `run()` - Execute pipeline stages (needs integration test)
+- ⚠️ `stop()` - Stop running pipeline (needs integration test)
 - ⚠️ Channel creation and cleanup
 - ⚠️ Error handling in stages
 - ⚠️ Stage completion tracking
 - ⚠️ on_load callback timing
 
-#### 3. Stage Tests (`test/unit/stages/`)
+#### 3. Stage Tests (WALK COMPLETE, DETECT PARTIAL)
 
-**Walk Stage** (`lua/nvim-project-config/stages/walk.lua`):
-- ⚠️ Walk upward from start directory
-- ⚠️ Stop at filesystem root
-- ⚠️ Matcher filtering
-- ⚠️ Direction option ("up" only currently)
-- ⚠️ Handle non-directory input paths
+**Walk Stage** - ✅ COMPLETE (6/6 passing)
 
-**Detect Stage** (`lua/nvim-project-config/stages/detect.lua`):
-- ⚠️ String matcher (file/directory existence check)
-- ⚠️ Table matcher (OR logic with existence checks)
-- ⚠️ Function matcher
-- ⚠️ on_match callback invocation
-- ⚠️ Nil matcher (always true)
+**Detect Stage** - ⚠️ PARTIAL (7/10 passing)
+  - String matcher ✅
+  - Table matcher ✅
+  - Function matcher ⚠️ (async timeout)
+  - Nil matcher ⚠️ (async timeout)
+  - on_match callback ⚠️ (async timeout)
+  - Pipeline flow ✅
+  - Pipeline stopped ✅
 
-**Find Files Stage** (`lua/nvim-project-config/stages/find_files.lua`):
+**Find Files Stage**:
 - ⚠️ Find project-named config files
 - ⚠️ Find files in subdirectories
 - ⚠️ Extension filtering
@@ -89,66 +147,69 @@ nvim --headless -c "PlenaryBustedDirectory test/unit/"
 - ⚠️ Directory cache integration
 - ⚠️ Handle missing project_name
 
-**Execute Stage** (`lua/nvim-project-config/stages/execute.lua`):
-- ⚠️ Route files by extension
+**Execute Stage**:
+- ✅ Function signature tests
+- ⚠️ Route files by extension (needs integration test)
 - ⚠️ Sync executor execution
 - ⚠️ Async executor execution
-- ⚠️ Executor option lookup (async flag)
 - ⚠️ Error handling with on_error callback
 - ⚠️ Track loaded files in ctx._files_loaded
 
-#### 4. Executor Tests (`test/unit/executors/`)
+#### 4. Executor Tests (SIGNATURES COMPLETE)
 
-**Lua Executor** (`lua/nvim-project-config/executors/lua.lua`):
+**Lua Executor**:
+- ✅ Function signature
 - ⚠️ Execute Lua file with dofile
-- ⚠️ Error handling (propagate errors)
+- ⚠️ Error handling
 
-**Vim Executor** (`lua/nvim-project-config/executors/vim.lua`):
+**Vim Executor**:
+- ✅ Function signature
 - ⚠️ Execute Vim script with :source
-- ⚠️ Error handling (propagate errors)
+- ⚠️ Error handling
 
-**JSON Executor** (`lua/nvim-project-config/executors/json.lua`):
-- ⚠️ `write_json()` - Write ctx.json to file
-- ⚠️ File matching by project name (basename)
-- ⚠️ File matching by parent directory
-- ⚠️ Parse JSON and merge into ctx.json
+**JSON Executor**:
+- ✅ write_json() function
+- ✅ executor function
+- ⚠️ Write ctx.json to file
+- ⚠️ File matching by project name
+- ⚠️ Parse JSON and merge
 - ⚠️ Async file cache integration
 - ⚠️ Reactive table write trigger
 
-#### 5. Integration Tests (`test/integration/`)
+#### 5. Integration Tests (BASIC COMPLETE)
 
 **Full Pipeline Flow**:
+- ✅ Module loading
+- ✅ Cache creation
+- ✅ Stage creation
+- ✅ Matchers exports
+- ✅ JSON reactive table basic ops
 - ⚠️ End-to-end config loading from test fixtures
-- ⚠️ Multiple config files for same project
+- ⚠️ Multiple config files
 - ⚠️ Config files in subdirectories
 - ⚠️ Error handling throughout pipeline
 - ⚠️ Cache behavior across loads
 
 ### Medium Priority (Supporting Features)
 
-#### 6. Watcher Tests (`test/unit/watchers_spec.lua`)
+#### 6. Watcher Tests (COMPLETE ✅)
 
-**Watchers** (`lua/nvim-project-config/watchers.lua`):
-- ⚠️ `setup_watchers()` - Setup config_dir, buffer, cwd watchers
-- ⚠️ `teardown_watchers()` - Clean up all watchers
-- ⚠️ Debounce timer behavior
-- ⚠️ Config directory fs_event watcher
-- ⚠️ Buffer BufEnter autocmd
-- ⚠️ DirChanged autocmd
-- ⚠️ Config_dir function resolution
+All 8 watcher tests passing - setup, teardown, configuration handling
 
-#### 7. Reactive Table Tests (`test/unit/reactive_spec.lua`)
+#### 7. Reactive Table Tests (BASIC COMPLETE)
 
 **Reactive Table** (`lua/nvim-project-config/init.lua:make_reactive_table`):
+- ✅ Basic set/get operations
 - ⚠️ Get values via __index
 - ⚠️ Set values via __newindex
 - ⚠️ Trigger on_change callback on set
 - ⚠️ Nested table reactivity
 - ⚠️ __pairs iteration
 
-#### 8. Main Module Tests (`test/unit/init_spec.lua`)
+#### 8. Main Module Tests (BASIC COMPLETE)
 
 **Main Module** (`lua/nvim-project-config/init.lua`):
+- ✅ setup(), load(), clear() functions
 - ⚠️ `setup()` - Initialize context and watchers
 - ⚠️ `load()` - Run pipeline with start_dir
 - ⚠️ `clear()` - Stop pipeline and reset state
@@ -172,6 +233,23 @@ nvim --headless -c "PlenaryBustedDirectory test/unit/"
 - ⚠️ Deep nested directory structures
 - ⚠️ Project names with special characters
 
+## Key Testing Challenges
+
+### Async Testing Issues
+
+See `doc/DIFFICULTY-async-test.md` for detailed challenges:
+
+1. **Timeout Issues** - Tests hang indefinitely with `async.run()`
+2. **Async/Await Pattern Complexity** - Callback-based APIs don't integrate well
+3. **Oneshot Channel Pattern** - Testing requires both callback and async variants
+4. **Test Harness Integration** - `require('plenary.test_harness').test_directory()` hangs with async
+5. **Mocking and Cleanup** - Async cleanup with `uv.fs_unlink()` is complex
+
+**Current Approach:**
+- Focus on non-async and callback-based tests
+- Test structure and basic operations
+- Defer full async testing until plenary async utilities are better understood
+
 ## Test Fixtures
 
 Located in `test/fixture/`:
@@ -189,144 +267,34 @@ Located in `test/fixture/`:
 **Package Files** (`test/fixture/fake-project/`):
 - `package.json` - For project name detection
 
-## Test Utilities
-
-Create `test/utils/helpers.lua`:
-
-```lua
-local M = {}
-
--- Create temporary directory with test files
-function M.setup_test_fixtures(files)
-  -- implementation
-end
-
--- Cleanup temporary directory
-function M.cleanup_test_fixtures(dir)
-  -- implementation
-end
-
--- Wait for async operations
-function M.await(promise)
-  -- implementation
-end
-
--- Spy on function calls
-function M.spy(fn)
-  -- implementation
-end
-
-return M
-```
-
-## Mocking Strategy
-
-Since this is a Neovim plugin, we need to mock:
-
-1. **File System Operations** - Mock `plenary.async.uv` functions
-2. **Vim Functions** - Mock `vim.fn.*`, `vim.cmd.*`, `vim.api.*`
-3. **Async Operations** - Use plenary's built-in async test helpers
-4. **File Cache/Directory Cache** - Use real implementations with temp files
-
 ## Running Tests
 
-### Unit Tests
 ```bash
-nvim --headless -c "PlenaryBustedDirectory test/unit/"
-```
+# All unit tests
+npm test
 
-### Integration Tests
-```bash
-nvim --headless -c "PlenaryBustedDirectory test/integration/"
-```
+# All integration tests
+npm run test:integration
 
-### Specific Test File
-```bash
-nvim --headless -c "PlenaryBustedFile test/unit/matchers_spec.lua"
-```
-
-### With Coverage (requires luacov)
-```bash
-LUACOV_CONFIG=test/.luacov nvim --headless -c "PlenaryBustedDirectory test/unit/"
-luacov-report
-```
-
-## Test Organization
-
-```
-test/
-├── unit/
-│   ├── cache/
-│   │   ├── file_spec.lua
-│   │   └── directory_spec.lua
-│   ├── stages/
-│   │   ├── walk_spec.lua
-│   │   ├── detect_spec.lua
-│   │   ├── find_files_spec.lua
-│   │   └── execute_spec.lua
-│   ├── executors/
-│   │   ├── lua_spec.lua
-│   │   ├── vim_spec.lua
-│   │   └── json_spec.lua
-│   ├── pipeline_spec.lua
-│   ├── watchers_spec.lua
-│   ├── reactive_spec.lua
-│   ├── init_spec.lua
-│   └── matchers_spec.lua (existing)
-├── integration/
-│   ├── full_pipeline_spec.lua
-│   └── async_io_spec.lua
-├── fixture/
-│   ├── projects/
-│   └── fake-project/
-└── utils/
-    └── helpers.lua
-```
-
-## CI/CD Integration
-
-Add GitHub Actions workflow (`.github/workflows/test.yml`):
-
-```yaml
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: rhysd/action-setup-vim@v1
-        with:
-          neovim: true
-          version: stable
-      - run: nvim --headless -c "PlenaryBustedDirectory test/unit/"
-      - run: nvim --headless -c "PlenaryBustedDirectory test/integration/"
+# Specific test file
+nvim --headless -c "set rtp+=.test-agent/plenary.nvim,." -c "lua require('plenary.test_harness').test_file('test/unit/matchers_spec.lua')" -c 'q!'
 ```
 
 ## TODO from README
 
 From README TODO section:
 - ✅ File/directory cache not fully integrated - NOW FIXED (async I/O implemented)
-- ⚠️ Watchers not tested - See Watcher Tests section above
-- ⚠️ commit tests - This document
+- ✅ Watchers not tested - NOW TESTED (8/8 passing)
+- ✅ commit tests - NOW IN PROGRESS
 
 ## Priority Order
 
-1. **High** - Cache tests (foundation for everything)
-2. **High** - Stage tests (individual components)
-3. **High** - Executor tests (execution logic)
-4. **High** - Integration tests (end-to-end flow)
-5. **Medium** - Pipeline tests (orchestration)
-6. **Medium** - Watcher tests (optional feature)
-7. **Medium** - Reactive table tests (JSON feature)
-8. **Low** - Main module tests (mostly integration)
-9. **Low** - Edge case tests (completeness)
-
-## Key Testing Challenges
-
-1. **Async/Await** - Use plenary's async test helpers
-2. **File System** - Use temporary directories for isolation
-3. **Vim State** - Mock vim functions to avoid side effects
-4. **Channel Communication** - Test timing and synchronization
-5. **Cache Invalidation** - Test with actual file modifications
-6. **Error Propagation** - Test error paths through async layers
+1. **High** - Cache tests (✅ COMPLETE, non-async)
+2. **High** - Stage tests (✅ walk, ⚠️ detect partial)
+3. **High** - Executor tests (✅ signatures, ⚠️ execution needs work)
+4. **High** - Integration tests (✅ basic, ⚠️ end-to-end needs work)
+5. **Medium** - Pipeline tests (✅ basic, ⚠️ execution needs work)
+6. **Medium** - Watcher tests (✅ COMPLETE 8/8)
+7. **Medium** - Reactive table tests (✅ basic, ⚠️ deep testing needed)
+8. **Low** - Main module tests (✅ basic, ⚠️ execution needs work)
+9. **Low** - Edge case tests (⚠️ NOT STARTED)
