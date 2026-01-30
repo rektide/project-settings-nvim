@@ -77,7 +77,7 @@ local defaults = {
     return vim.fn.stdpath("config") .. "/projects"
   end,
   pipeline = nil,
-  executors = { lua = { async = false }, vim = { async = false }, json = { async = false } },
+  executors = { lua = { async = false }, vim = { async = false }, json = { async = true } },
   loading = {
     on = "startup",
     start_dir = nil,

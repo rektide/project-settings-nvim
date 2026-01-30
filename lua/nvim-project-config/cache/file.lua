@@ -12,6 +12,22 @@ function FileCache.new(opts)
   }, FileCache)
 end
 
+function FileCache:get_async(path)
+  local tx, rx = async.control.channel.oneshot()
+  self:get(path, function(entry)
+    tx(entry)
+  end)
+  return rx()
+end
+
+function FileCache:write_async(path, data)
+  local tx, rx = async.control.channel.oneshot()
+  self:write(path, data, function(success)
+    tx(success)
+  end)
+  return rx()
+end
+
 local function read_file_async(path, callback)
   async.run(function()
     local stat, stat_err = uv.fs_stat(path)

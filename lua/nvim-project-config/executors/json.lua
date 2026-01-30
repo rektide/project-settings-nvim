@@ -1,6 +1,8 @@
 --- JSON file executor for nvim-project-config
 --- @module nvim-project-config.executors.json
 
+local async = require("plenary.async")
+
 --- Write ctx.json to the last project-named JSON file
 --- @param ctx table pipeline context with json data and _last_project_json path
 --- @return boolean success
@@ -15,12 +17,14 @@ local function write_json(ctx)
   end
   local encoded = vim.json.encode(raw_json)
 
-  local ok, err = pcall(function()
-    local fd = assert(io.open(ctx._last_project_json, "w"))
-    fd:write(encoded)
-    fd:close()
-  end)
-  return ok
+  if ctx.file_cache then
+    local success = ctx.file_cache:write_async(ctx._last_project_json, {
+      content = encoded,
+    })
+    return success
+  end
+
+  return false
 end
 
 --- Check if file matches project name (basename or parent dir)
@@ -45,12 +49,20 @@ end
 local function json_executor(ctx, file_path)
   local content
 
-  local fd, err = io.open(file_path, "r")
-  if not fd then
-    error("Failed to read JSON file: " .. file_path .. " - " .. tostring(err))
+  if ctx.file_cache then
+    local entry = ctx.file_cache:get_async(file_path)
+    if not entry then
+      error("Failed to read JSON file: " .. file_path)
+    end
+    content = entry.content
+  else
+    local fd, err = io.open(file_path, "r")
+    if not fd then
+      error("Failed to read JSON file: " .. file_path .. " - " .. tostring(err))
+    end
+    content = fd:read("*a")
+    fd:close()
   end
-  content = fd:read("*a")
-  fd:close()
 
   local ok, parsed = pcall(vim.json.decode, content)
   if not ok then

@@ -17,9 +17,7 @@ function DirectoryCache:get(path, callback)
   async.run(function()
     local entries = self:_get_async(path)
     if callback then
-      vim.schedule(function()
-        callback(entries)
-      end)
+      callback(entries)
     end
   end)
 end

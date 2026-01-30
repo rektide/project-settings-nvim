@@ -18,7 +18,7 @@ flowchart TD
     DetectName --> FindFiles[Find Files Stage]
     FindFiles --> Execute[Execute Stage]
     Execute --> Applied[Configuration Applied]
-    
+
     subgraph Pipeline["Pipeline Stages"]
         Walk
         DetectRoot
@@ -26,13 +26,13 @@ flowchart TD
         FindFiles
         Execute
     end
-    
+
     subgraph Caches
         DirCache[(Directory Cache)] -.-> Walk
         FileCache[(File Cache)] -.-> FindFiles
         FileCache -.-> Execute
     end
-    
+
     CTX{{ctx}} --> Pipeline
 ```
 
@@ -67,6 +67,7 @@ require("nvim-project-config").setup()
 ```
 
 For a project at `~/src/rad-project/`, this loads:
+
 - `~/.config/nvim/projects/rad-project.lua`
 - `~/.config/nvim/projects/rad-project.vim`
 - `~/.config/nvim/projects/rad-project.json`
@@ -109,7 +110,7 @@ require("nvim-project-config").setup({
   -- Pipeline stages (instantiated, order matters)
   pipeline = {
     walk({ direction = "up" }),
-    
+
     -- Detect project root
     detect({
       matcher = { ".git", ".hg", ".svn", "Makefile", "package.json" },
@@ -118,7 +119,7 @@ require("nvim-project-config").setup({
         ctx.project_name = vim.fn.fnamemodify(path, ":t")
       end,
     }),
-    
+
     -- Optionally extract project name from package.json
     detect({
       matcher = "package.json",
@@ -133,11 +134,11 @@ require("nvim-project-config").setup({
         end
       end,
     }),
-    
+
     find_files({
       extensions = { ".lua", ".vim", ".json" },
     }),
-    
+
     execute({
       router = {
         [".lua"] = require("nvim-project-config.executors.lua"),
@@ -146,7 +147,7 @@ require("nvim-project-config").setup({
       },
     }),
   },
-  
+
   -- Executor options
   executors = {
     lua = {
@@ -165,15 +166,15 @@ require("nvim-project-config").setup({
       -- Watch config directory for file changes (vim.loop.fs_event)
       -- Reloads when you edit ~/.config/nvim/projects/*.lua
       config_dir = false,
-      
+
       -- Watch buffer changes (BufEnter autocmd)
       -- When focus moves to buffer in different directory, reload for that context
       buffer = false,
-      
+
       -- Watch cwd changes (DirChanged autocmd)
       -- Reloads on :cd, :lcd, :tcd
       cwd = false,
-      
+
       debounce_ms = 100,      -- Debounce time for rapid events
     },
   },
@@ -252,6 +253,7 @@ For monorepos with sub-packages, use nested names:
 ```
 
 Loads configuration from:
+
 - `~/.config/nvim/projects/big-repo.lua`
 - `~/.config/nvim/projects/big-repo/frontend.lua`
 
@@ -325,6 +327,7 @@ flowchart LR
 ```
 
 Channels live on `ctx`. This enables:
+
 - **Cancellation**: `clear()` closes channels, stages exit naturally
 - **Streaming**: Multiple inputs yield multiple outputs
 - **Async I/O**: Stages can await without blocking
@@ -341,18 +344,18 @@ ctx = {
   loading = { ... },
   on_load = function(ctx) ... end,
   on_clear = function(ctx) ... end,
-  
+
   -- Caches (persist across clear, have own invalidation)
   dir_cache = DirectoryCache,   -- Single-directory listings
   file_cache = FileCache,       -- File contents + parsed data
-  
+
   -- Discovered state (cleared on clear())
   project_root = "/home/user/src/rad-project",
   project_name = "rad-project",
   json = { ... },
   _last_project_json = "/path/to/last/matched.json",
   _files_loaded = { ... },
-  
+
   -- Pipeline infrastructure (recreated on run)
   channels = { ... },
 }
@@ -380,11 +383,13 @@ flowchart TD
 ```
 
 **Directory Cache** (`ctx.dir_cache`):
+
 - Uses `vim.loop.fs_readdir` (single directory, not recursive)
 - One cache entry per directory path
 - Invalidated when directory mtime changes
 
 **File Cache** (`ctx.file_cache`):
+
 - Stores: path, raw content, mtime, parsed data (`.json` field for JSON files)
 - Read: on mtime mismatch, reloads content and clears parsed data
 - Write behavior:
@@ -420,7 +425,7 @@ function clear(ctx)
   for _, ch in pairs(ctx.channels or {}) do
     pcall(function() ch.tx:close() end)
   end
-  
+
   -- Reset discovered state
   ctx.project_root = nil
   ctx.project_name = nil
@@ -428,7 +433,7 @@ function clear(ctx)
   ctx._last_project_json = nil
   ctx._files_loaded = nil
   ctx.channels = nil
-  
+
   -- Notify listeners
   if ctx.on_clear then ctx.on_clear(ctx) end
 end
@@ -512,6 +517,7 @@ cache.clear_all()
 ### Per-Project Formatter
 
 `~/.config/nvim/projects/web-app.lua`:
+
 ```lua
 vim.opt_local.tabstop = 2
 vim.opt_local.shiftwidth = 2
@@ -543,10 +549,11 @@ require("nvim-project-config").setup({
 ### JSON Settings with Programmatic Access
 
 `~/.config/nvim/projects/notes.json`:
+
 ```json
 {
-  "word_count_goal": 1000,
-  "auto_save": true
+	"word_count_goal": 1000,
+	"auto_save": true
 }
 ```
 
@@ -556,6 +563,14 @@ if npc.ctx.json and npc.ctx.json.auto_save then
   vim.opt_local.autowrite = true
 end
 ```
+
+## TODO
+
+- ready signal
+- commit tests
+- File/directory cache not fully integrated (using sync I/O for now)
+- Watchers not tested
+- Recursive metatable for nested JSON writes needs more work
 
 ## License
 
