@@ -4,6 +4,7 @@
 
 local uv = require("coop.uv")
 local matchers = require("nvim-project-config.matchers")
+local pipeline_mod = require("nvim-project-config.pipeline")
 
 --- Create a detection stage
 --- @param opts table|nil options
@@ -48,14 +49,13 @@ local function detect(opts)
   end
 
   return function(ctx, input_rx, output_tx)
-    local pipeline = require("nvim-project-config.pipeline")
     while true do
       if ctx._pipeline_stopped then
         return
       end
 
       local path = input_rx.recv()
-      if path == nil or path == pipeline.DONE then
+      if path == nil or path == pipeline_mod.DONE then
         break
       end
 

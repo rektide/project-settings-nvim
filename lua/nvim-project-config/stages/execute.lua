@@ -1,6 +1,8 @@
 --- Execute stage: routes config files to extension-specific executors
 --- @module nvim-project-config.stages.execute
 
+local pipeline_mod = require("nvim-project-config.pipeline")
+
 --- Create an execute stage that runs config files
 --- @param opts table|nil options
 --- @param opts.router table extension -> executor mapping
@@ -10,7 +12,6 @@ local function execute(opts)
   opts.router = opts.router or {}
 
   return function(ctx, input_rx, output_tx)
-    local pipeline = require("nvim-project-config.pipeline")
     ctx._files_loaded = ctx._files_loaded or {}
 
     while true do
@@ -19,7 +20,7 @@ local function execute(opts)
       end
 
       local file_path = input_rx.recv()
-      if file_path == nil or file_path == pipeline.DONE then
+      if file_path == nil or file_path == pipeline_mod.DONE then
         break
       end
 

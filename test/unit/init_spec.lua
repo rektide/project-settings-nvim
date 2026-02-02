@@ -1,6 +1,7 @@
 describe("nvim-project-config main module", function()
   local npc = require("nvim-project-config")
   local pipeline = require("nvim-project-config.pipeline")
+  local coop = require("coop")
 
   after_each(function()
     if npc.ctx then
@@ -272,7 +273,6 @@ describe("nvim-project-config main module", function()
 
     it("awaiter function returns context when pipeline completes", function()
       local old_ctx = npc.ctx
-      local async = require("coop")
       local called = false
       local result_ctx = nil
 
@@ -293,7 +293,7 @@ describe("nvim-project-config main module", function()
       }
 
       local awaiter = npc.load_await()
-      async.spawn(function()
+      coop.spawn(function()
         result_ctx = awaiter()
         called = true
       end)
@@ -309,7 +309,6 @@ describe("nvim-project-config main module", function()
 
     it("preserves existing on_load callback", function()
       local old_ctx = npc.ctx
-      local async = require("coop")
       local on_load_called = false
       local awaiter_called = false
       local result_ctx = nil
@@ -336,7 +335,7 @@ describe("nvim-project-config main module", function()
       }
 
       local awaiter = npc.load_await()
-      async.spawn(function()
+      coop.spawn(function()
         result_ctx = awaiter()
         awaiter_called = true
       end)
@@ -353,7 +352,6 @@ describe("nvim-project-config main module", function()
 
     it("uses provided override context", function()
       local old_ctx = npc.ctx
-      local async = require("coop")
       local called = false
       local on_load_triggered = false
       local result_ctx = nil
@@ -378,7 +376,7 @@ describe("nvim-project-config main module", function()
       end
 
       local awaiter = npc.load_await(override_ctx)
-      async.spawn(function()
+      coop.spawn(function()
         result_ctx = awaiter()
       end)
 

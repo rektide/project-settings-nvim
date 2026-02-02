@@ -1,4 +1,5 @@
 local coop = require("coop")
+local main_mod = require("nvim-project-config")
 
 local M = {}
 
@@ -20,15 +21,14 @@ local function debounced_reload(ctx, new_start_dir)
   ctx._watchers.debounce_timer = vim.fn.timer_start(debounce_ms, function()
     ctx._watchers.debounce_timer = nil
     coop.spawn(function()
-      local main = require("nvim-project-config")
-      main.clear(ctx)
+      main_mod.clear(ctx)
       if new_start_dir then
-        local wait_fn = main.load_await(vim.tbl_extend("force", ctx, { start_dir = new_start_dir }))
+        local wait_fn = main_mod.load_await(vim.tbl_extend("force", ctx, { start_dir = new_start_dir }))
         if wait_fn then
           wait_fn()
         end
       else
-        local wait_fn = main.load_await(ctx)
+        local wait_fn = main_mod.load_await(ctx)
         if wait_fn then
           wait_fn()
         end

@@ -3,6 +3,7 @@
 --- @module nvim-project-config.stages.find_files
 
 local uv = require("coop.uv")
+local pipeline_mod = require("nvim-project-config.pipeline")
 
 local EXTENSION_ORDER = { ".json", ".lua", ".vim" }
 
@@ -82,14 +83,13 @@ local function find_files(opts)
   opts.extensions = opts.extensions or { ".lua", ".vim", ".json" }
 
   return function(ctx, input_rx, output_tx)
-    local pipeline = require("nvim-project-config.pipeline")
     while true do
       if ctx._pipeline_stopped then
         return
       end
 
       local path = input_rx.recv()
-      if path == nil or path == pipeline.DONE then
+      if path == nil or path == pipeline_mod.DONE then
         break
       end
 

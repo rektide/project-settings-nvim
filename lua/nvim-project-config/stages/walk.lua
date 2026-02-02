@@ -2,6 +2,7 @@
 --- @module nvim-project-config.stages.walk
 
 local matchers = require("nvim-project-config.matchers")
+local pipeline_mod = require("nvim-project-config.pipeline")
 
 --- Create a walk stage that walks directories upward
 --- @param opts table|nil options
@@ -14,9 +15,8 @@ local function walk(opts)
   local matcher = matchers.process(opts.matcher)
 
   return function(ctx, input_rx, output_tx)
-    local pipeline = require("nvim-project-config.pipeline")
     local path = input_rx.recv()
-    if path == nil or path == pipeline.DONE or ctx._pipeline_stopped then
+    if path == nil or path == pipeline_mod.DONE or ctx._pipeline_stopped then
       return
     end
 
