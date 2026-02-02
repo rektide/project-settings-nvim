@@ -120,8 +120,8 @@ local sender, receiver = channel.mpsc()
 
 -- Consumer coroutine - runs in async context, safe to use uv.fs_write
 -- Each write is processed individually; the channel handles the async boundary
--- Using async.void() for fire-and-forget pattern (consumer runs forever)
-async.void(function()
+-- Use async.run() with callback pattern for long-running consumers
+async.run(function()
   print("[NPC] Async write consumer started")
   while true do
     -- Wait for a write request (blocks in async context)
@@ -142,7 +142,10 @@ async.void(function()
       print("[NPC] Write succeeded: " .. write_req.path)
     end
   end
-end)()
+end, function()
+  -- Callback when coroutine ends (shouldn't happen)
+  print("[NPC] Consumer ended (shouldn't happen)")
+end)
 
 -- Queue function - NON-ASYNC, safe to call from __newindex
 local function queue_write(path, data)
