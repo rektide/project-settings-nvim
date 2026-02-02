@@ -2,6 +2,12 @@ describe("nvim-project-config main module", function()
   local npc = require("nvim-project-config")
   local pipeline = require("nvim-project-config.pipeline")
 
+  after_each(function()
+    if npc.ctx then
+      npc.clear()
+    end
+  end)
+
   describe("setup", function()
     it("initializes context with default values", function()
       local old_ctx = npc.ctx

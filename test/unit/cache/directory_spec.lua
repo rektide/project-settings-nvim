@@ -1,5 +1,5 @@
 describe("DirectoryCache", function()
-  local uv = require("plenary.async").uv
+  local uv = vim.loop
   local tmp_dir
   local dir_cache
 
@@ -31,7 +31,7 @@ describe("DirectoryCache", function()
   end
 
   before_each(function()
-    tmp_dir = "/tmp/npc-test-dir-" .. vim.loop.os_getpid()
+    tmp_dir = "/tmp/npc-test-dir-" .. uv.os_getpid()
     uv.fs_mkdir(tmp_dir, 493)
     dir_cache = require("nvim-project-config.cache.directory").new({
       trust_mtime = true,

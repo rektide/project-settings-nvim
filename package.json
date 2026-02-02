@@ -4,10 +4,10 @@
 	"description": "",
 	"main": "index.js",
 	"scripts": {
-		"test": "nvim --headless -c 'set rtp+=.test-agent/plenary.nvim,.' -c 'lua require(\"plenary.test_harness\").test_directory(\"test/unit\")' -c 'q!'",
-		"test:integration": "nvim --headless -c 'set rtp+=.test-agent/plenary.nvim,.' -c 'lua require(\"plenary.test_harness\").test_directory(\"test/integration\")' -c 'q!'",
+		"test": "nvim --headless -c 'set rtp+=.test-agent/plenary.nvim,.' -c 'lua require(\"plenary.test_harness\").test_directory(\"test/unit\")' -c 'qa!'",
+		"test:integration": "nvim --headless -c 'set rtp+=.test-agent/plenary.nvim,.' -c 'lua require(\"plenary.test_harness\").test_directory(\"test/integration\")' -c 'qa!'",
 		"test:all": "npm run test && npm run test:integration",
-		"test:file": "nvim --headless -c 'set rtp+=.test-agent/plenary.nvim,.' -c 'lua require(\"plenary.test_harness\").test_file(process.argv[5])' -c 'q!'"
+		"test:file": "nvim --headless -c 'set rtp+=.test-agent/plenary.nvim,.' -c 'lua require(\"plenary.test_harness\").test_file(process.argv[5])' -c 'qa!'"
 	},
 	"repository": {
 		"type": "git",
