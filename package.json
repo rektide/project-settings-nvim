@@ -4,10 +4,10 @@
 	"description": "",
 	"main": "index.js",
 	"scripts": {
-		"test": "nvim --headless -c 'set rtp+=.test-agent/plenary.nvim,.' -c 'lua require(\"plenary.test_harness\").test_directory(\"test/unit\")' -c 'qa!'",
-		"test:integration": "nvim --headless -c 'set rtp+=.test-agent/plenary.nvim,.' -c 'lua require(\"plenary.test_harness\").test_directory(\"test/integration\")' -c 'qa!'",
+		"test": "./test/run_tests.sh test/unit",
+		"test:integration": "./test/run_tests.sh test/integration",
 		"test:all": "npm run test && npm run test:integration",
-		"test:file": "nvim --headless -c 'set rtp+=.test-agent/plenary.nvim,.' -c 'lua require(\"plenary.test_harness\").test_file(process.argv[5])' -c 'qa!'"
+		"test:file": "./test/run_tests.sh single '$1'"
 	},
 	"repository": {
 		"type": "git",
