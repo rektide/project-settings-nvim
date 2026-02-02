@@ -15,6 +15,7 @@
 6. [Recommendation](#recommendation)
 7. [Implementation Guide](#implementation-guide)
 8. [Migration Notes](#migration-notes)
+9. [**Resolution: Coroutine-First Refactor (Implemented)**](#resolution-coroutine-first-refactor-implemented)
 
 ---
 
@@ -1184,3 +1185,129 @@ Related analysis documents:
 - `FIX_COROUTINE_REFACTOR.md` - Full coroutine refactor details
 - `CONSUMER_EXPERIENCE_ANALYSIS.md` - Consumer experience comparison
 - `JSON_LOADING_TEST.md` - Test results showing the issue
+
+---
+
+## Resolution: Coroutine-First Refactor (Implemented)
+
+### Revised Diagnosis
+
+The original analysis focused on oneshot channels not bridging across coroutines. While directionally correct, the **actual root cause** was simpler:
+
+**`async.uv.fs_*` functions are plenary-wrapped async functions that yield inside coroutines—but they were being called from within callback chains that weren't in a coroutine context.**
+
+The old `read_file_async()` helper had this signature:
+
+```lua
+local function read_file_async(path, callback)
+  local stat = uv.fs_stat(path)  -- ← This YIELDS, needs coroutine context!
+  ...
+  callback(entry)
+end
+```
+
+Despite the callback-style signature, it used `async.uv.fs_stat()` which **yields**. When `get()` called this from a plain callback (not inside `async.run()`), the yield failed.
+
+### The Fix
+
+**Option 2 (Coroutine-First)** was implemented—simpler than Option 5 (Background Worker) and equally effective.
+
+The pattern:
+
+1. Make `get_async()`/`write_async()` **pure coroutine functions** that use `async.uv.*` directly
+2. Make callback-based `get()`/`write()` thin wrappers that call `async.run()` to create coroutine context
+
+#### FileCache (after fix)
+
+```lua
+-- Pure coroutine helpers (must be called from within async context)
+local function read_file_coro(path)
+  local stat = uv.fs_stat(path)
+  if not stat then return nil end
+
+  local fd = uv.fs_open(path, "r", 438)
+  if not fd then return nil end
+
+  local content = uv.fs_read(fd, stat.size, 0)
+  uv.fs_close(fd)
+
+  if not content then return nil end
+
+  return {
+    path = path,
+    content = content,
+    mtime = stat.mtime.sec,
+    json = nil,
+  }
+end
+
+-- Primary async API (call from within async.run or coroutine context)
+function FileCache:get_async(path)
+  local cached = self._cache[path]
+
+  if not cached or not self.trust_mtime then
+    local entry = read_file_coro(path)
+    if entry then self._cache[path] = entry end
+    return entry
+  end
+
+  local mtime = get_mtime_coro(path)
+  if mtime and mtime == cached.mtime then
+    return cached
+  end
+
+  local entry = read_file_coro(path)
+  if entry then
+    self._cache[path] = entry
+  else
+    self._cache[path] = nil
+  end
+  return entry
+end
+
+-- Callback API (safe to call from non-async context)
+function FileCache:get(path, callback)
+  async.run(function()
+    return self:get_async(path)
+  end, callback)
+end
+```
+
+#### DirectoryCache (after fix)
+
+Same pattern applied—`get_async()` is pure coroutine, `get()` wraps with `async.run()`.
+
+### Why This Works
+
+1. **Pipeline stages run inside `async.run()`** (see `pipeline.lua` line 33)
+2. **Stages call `ctx.file_cache:get_async()`** which is now a pure coroutine function
+3. **`get_async()` uses `async.uv.*`** which correctly yields within that coroutine
+4. **No oneshot channels needed**—no cross-coroutine bridging
+
+### Test Results
+
+All tests pass after the fix:
+
+```
+Unit tests:     62 passing
+Integration:    12 passing
+Total:          74 passing
+```
+
+### Comparison to Original Recommendation
+
+| Aspect | Option 5 (Background Worker) | Option 2 (Coroutine-First) |
+|--------|------------------------------|---------------------------|
+| Complexity | Medium (mpsc channels, worker loop) | **Low** (just restructure) |
+| Lines changed | ~100+ | **~50** |
+| Consumer impact | None | **None** |
+| Fixes root cause | Yes | **Yes** |
+| Performance | Optimal async I/O | **Optimal async I/O** |
+
+Option 2 achieved the same goals with less complexity. The background worker pattern would be useful if we needed request deduplication or backpressure, but for this use case, coroutine-first is sufficient.
+
+### Lessons Learned
+
+1. **Plenary's `async.uv.*` functions always yield**—they're not callback-based despite wrapping callback-based libuv functions
+2. **Don't mix callback and coroutine patterns**—pick one and be consistent
+3. **The callback API can wrap the coroutine API**, not vice versa
