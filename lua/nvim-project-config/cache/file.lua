@@ -111,7 +111,6 @@ local sender, receiver = channel.mpsc()
 
 -- Consumer coroutine - runs in async context, safe to use uv.fs_write
 -- Each write is processed individually; the channel handles the async boundary
--- Use async.void() for fire-and-forget pattern (consumer runs forever)
 async.void(function()
   print("[NPC] Async write consumer started")
   while true do
@@ -121,17 +120,7 @@ async.void(function()
     print("[NPC] Got write request: " .. write_req.path)
 
     -- Write the file (safe because we're in an async coroutine)
-    local ok, err = pcall(function()
-      return write_file(write_req.path, write_req.data)
-    end)
-
-    if not ok then
-      print("[NPC] ERROR in write_file: " .. tostring(err))
-    elseif err then
-      print("[NPC] Failed to write file: " .. write_req.path .. " - " .. tostring(err))
-    else
-      print("[NPC] Write succeeded: " .. write_req.path)
-    end
+    write_file(write_req.path, write_req.data)
   end
 end)()
 
