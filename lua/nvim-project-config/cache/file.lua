@@ -1,5 +1,5 @@
 local async = require("plenary.async")
-local channel = a.control.channel
+local channel = async.control.channel
 local uv = async.uv
 
 local FileCache = {}
@@ -93,48 +93,46 @@ end
 -- ASYNC WRITE CHANNEL (Bridges non-async to async for file writes)
 -- ============================================================================
 
--- Create a debounced write channel
--- This solves "attempt to yield across C-call boundary" error
--- by queueing writes and processing them in async context
+-- Create MPSC channel for write requests
+local sender, receiver = channel.mpsc()
 
-local write_debounce_ms = 100  -- Debounce rapid writes
-
-local write_condvar = channel.Condvar.new()
-local pending_writes = {}
-local dirty = false
+-- Debounce timer
+local write_debounce_ms = 100
 
 -- Consumer coroutine - runs in async context, safe to use uv.fs_write
 async.void(function()
   while true do
-    -- Wait for dirty flag
-    write_condvar:wait()
+    -- Wait for a write request
+    local write_req = receiver.recv()
 
     -- Debounce: wait for more changes
     async.util.sleep(write_debounce_ms)
 
-    -- If more changes came in, wait again
-    if dirty then
-      dirty = false
-      write_condvar:wait()
-      async.util.sleep(write_debounce_ms)
+    -- Collect all pending writes
+    local pending = { write_req }
+    local has_more = true
+    while has_more do
+      local req = receiver.recv_nowait()
+      if req then
+        table.insert(pending, req)
+      else
+        has_more = false
+      end
     end
 
-    -- Write all pending data
-    for path, data in pairs(pending_writes) do
-      local ok, err = write_file(path, data)
+    -- Process all pending writes
+    for _, req in ipairs(pending) do
+      local ok, err = write_file(req.path, req.data)
       if not ok then
-        vim.notify("Failed to write file: " .. path .. " - " .. tostring(err), vim.log.levels.ERROR)
+        vim.notify("Failed to write file: " .. req.path .. " - " .. tostring(err), vim.log.levels.ERROR)
       end
-      pending_writes[path] = nil
     end
   end
 end)()
 
 -- Queue function - NON-ASYNC, safe to call from __newindex
 local function queue_write(path, data)
-  pending_writes[path] = data
-  dirty = true
-  write_condvar:notify_all()
+  sender.send({ path = path, data = data })
 end
 
 -- ============================================================================
