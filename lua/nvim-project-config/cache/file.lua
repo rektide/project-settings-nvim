@@ -113,9 +113,16 @@ async.void(function()
     print("[NPC] Got write request: " .. write_req.path)
 
     -- Write the file (safe because we're in async coroutine)
-    local ok, err = write_file(write_req.path, write_req.data)
+    local ok, err = pcall(function()
+      return write_file(write_req.path, write_req.data)
+    end)
+
     if not ok then
+      print("[NPC] ERROR in write_file: " .. tostring(err))
+    elseif err then
       print("[NPC] Failed to write file: " .. write_req.path .. " - " .. tostring(err))
+    else
+      print("[NPC] Write succeeded: " .. write_req.path)
     end
   end
 end)()
