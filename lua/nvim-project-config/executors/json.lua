@@ -56,7 +56,11 @@ local function json_executor(ctx, file_path)
   if ctx.file_cache then
     local entry = ctx.file_cache:get_async(file_path)
     if not entry then
-      error("Failed to read JSON file: " .. file_path)
+      -- File doesn't exist yet - set up path for future writes and skip loading
+      if matches_project_name(file_path, ctx.project_name) then
+        ctx._last_project_json = file_path
+      end
+      return
     end
     content = entry.content
   else
