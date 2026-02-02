@@ -15,11 +15,20 @@ local function write_json(ctx)
     ctx._last_project_json = ctx.config_dir .. "/" .. ctx.project_name .. ".json"
   end
 
-  local raw_json = {}
-  for k, v in pairs(ctx.json or {}) do
-    raw_json[k] = v
+  -- Get raw data from reactive table
+  local raw_json
+  if ctx.json and type(ctx.json._get_data) == "function" then
+    raw_json = ctx.json._get_data()
+  else
+    -- Fallback for non-reactive tables
+    raw_json = {}
+    for k, v in pairs(ctx.json or {}) do
+      raw_json[k] = v
+    end
   end
+
   local encoded = vim.json.encode(raw_json)
+  vim.notify("write_json: encoding " .. #raw_json .. " keys, output " .. #encoded .. " bytes", vim.log.levels.INFO)
 
   if ctx.file_cache then
     local success = ctx.file_cache:write_async(ctx._last_project_json, {

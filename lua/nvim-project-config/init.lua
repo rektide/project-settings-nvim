@@ -18,12 +18,22 @@ local json_mod = require("nvim-project-config.executors.json")
 local M = {}
 
 M.ctx = nil
+M._initialized = false
 
 local function make_reactive_table(on_change, parent_path)
   parent_path = parent_path or {}
   local data = {}
   local mt = {
     __index = function(_, key)
+      if key == "_get_data" then
+        return function()
+          local copy = {}
+          for k, v in pairs(data) do
+            copy[k] = v
+          end
+          return copy
+        end
+      end
       return data[key]
     end,
     __newindex = function(_, key, value)
@@ -106,6 +116,12 @@ local function deep_merge(base, override)
 end
 
 function M.setup(opts)
+  -- Prevent multiple initializations
+  if M._initialized then
+    vim.notify("nvim-project-config already initialized, skipping setup", vim.log.levels.WARN)
+    return
+  end
+
   opts = opts or {}
   local config = deep_merge(defaults, opts)
 
@@ -158,6 +174,8 @@ function M.setup(opts)
   else
     watchers.setup_watchers(ctx)
   end
+
+  M._initialized = true
 end
 
 function M.load(override_ctx)
