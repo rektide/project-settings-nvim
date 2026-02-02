@@ -87,6 +87,8 @@ local function json_executor(ctx, file_path)
     end
   end
 
+  -- Merge into existing reactive table, don't replace it
+  -- This preserves the reactive behavior
   if ctx.json then
     deep_merge_into(ctx.json, parsed)
   else

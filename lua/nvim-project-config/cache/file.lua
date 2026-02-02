@@ -44,16 +44,19 @@ local function read_file(path)
 end
 
 local function write_file(path, content)
+  vim.notify("write_file: " .. path .. " (len: " .. #content .. ")", vim.log.levels.INFO)
+
   local fd = uv.fs_open(path, "w", 438)
   if not fd then
     return false, "Failed to open file"
   end
 
-  local _, write_err = uv.fs_write(fd, content, 0)
+  local result, err = uv.fs_write(fd, content, 0)
+  vim.notify("uv.fs_write: result=" .. tostring(result) .. " err=" .. tostring(err), vim.log.levels.INFO)
   uv.fs_close(fd)
 
-  if write_err then
-    return false, "Write error: " .. tostring(write_err)
+  if err then
+    return false, "Write error: " .. tostring(err)
   end
 
   local stat = uv.fs_stat(path)
@@ -96,42 +99,24 @@ end
 -- Create MPSC channel for write requests
 local sender, receiver = channel.mpsc()
 
--- Debounce timer
-local write_debounce_ms = 100
-
 -- Consumer coroutine - runs in async context, safe to use uv.fs_write
+-- Each write is processed individually; the channel handles the async boundary
 async.void(function()
   while true do
-    -- Wait for a write request
+    -- Wait for a write request (blocks in async context)
     local write_req = receiver.recv()
 
-    -- Debounce: wait for more changes
-    async.util.sleep(write_debounce_ms)
-
-    -- Collect all pending writes
-    local pending = { write_req }
-    local has_more = true
-    while has_more do
-      local req = receiver.recv_nowait()
-      if req then
-        table.insert(pending, req)
-      else
-        has_more = false
-      end
-    end
-
-    -- Process all pending writes
-    for _, req in ipairs(pending) do
-      local ok, err = write_file(req.path, req.data)
-      if not ok then
-        vim.notify("Failed to write file: " .. req.path .. " - " .. tostring(err), vim.log.levels.ERROR)
-      end
+    -- Write the file (safe because we're in async coroutine)
+    local ok, err = write_file(write_req.path, write_req.data)
+    if not ok then
+      vim.notify("Failed to write file: " .. write_req.path .. " - " .. tostring(err), vim.log.levels.ERROR)
     end
   end
 end)()
 
 -- Queue function - NON-ASYNC, safe to call from __newindex
 local function queue_write(path, data)
+  vim.notify("queue_write: " .. path .. " (len: " .. #data .. ")", vim.log.levels.INFO)
   sender.send({ path = path, data = data })
 end
 
