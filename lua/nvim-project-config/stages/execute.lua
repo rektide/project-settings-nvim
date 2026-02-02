@@ -28,30 +28,30 @@ local function execute(opts)
       local ext = vim.fn.fnamemodify(file_path, ":e")
       local executor = opts.router[ext]
 
-      if executor then
-        local executor_opts = ctx.executors and ctx.executors[ext] or {}
-        local run_async = executor_opts.async or false
+        if executor then
+          local executor_opts = ctx.executors and ctx.executors[ext] or {}
+          local run_async = executor_opts.async or false
 
-        local function run_executor()
-          executor(ctx, file_path)
-          ctx._files_loaded[file_path] = true
-        end
+          local ok, err
+          if run_async then
+            ok, err = pcall(executor, ctx, file_path)
+            if ok then
+              ctx._files_loaded[file_path] = true
+            end
+          else
+            local function run_executor()
+              executor(ctx, file_path)
+              ctx._files_loaded[file_path] = true
+            end
+            ok, err = pcall(run_executor)
+          end
 
-        local ok, err
-        if run_async then
-          ok, err = pcall(function()
-            async.run(run_executor)
-          end)
-        else
-          ok, err = pcall(run_executor)
+          if not ok and ctx.on_error then
+            vim.schedule(function()
+              ctx.on_error(err, ctx, file_path)
+            end)
+          end
         end
-
-        if not ok and ctx.on_error then
-          vim.schedule(function()
-            ctx.on_error(err, ctx, file_path)
-          end)
-        end
-      end
     end
   end
 end
