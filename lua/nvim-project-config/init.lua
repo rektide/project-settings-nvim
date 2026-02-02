@@ -169,6 +169,33 @@ function M.load(override_ctx)
   pipeline.run(ctx, ctx.pipeline, start_dir)
 end
 
+function M.load_await(override_ctx)
+  local async = require("plenary.async")
+  local channel = require("plenary.async.control").channel
+
+  local ctx = override_ctx or M.ctx
+  if not ctx then
+    return nil
+  end
+
+  local tx, rx = channel.oneshot()
+
+  local old_on_load = ctx.on_load
+  ctx.on_load = function(loaded_ctx)
+    if old_on_load then
+      old_on_load(loaded_ctx)
+    end
+    tx(loaded_ctx)
+  end
+
+  local start_dir = ctx.loading and ctx.loading.start_dir or vim.fn.getcwd()
+  pipeline.run(ctx, ctx.pipeline, start_dir)
+
+  return function()
+    return rx()
+  end
+end
+
 function M.clear(override_ctx)
   local ctx = override_ctx or M.ctx
   if not ctx then

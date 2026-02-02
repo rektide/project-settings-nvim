@@ -203,7 +203,7 @@ require("nvim-project-config").setup({
 
 ### `on_load(ctx)` - Ready Signal
 
-Called when the configuration pipeline completes successfully. Use this to perform actions after project configuration is fully loaded.
+Called when configuration pipeline completes successfully. Use this callback for reactive setup that responds to config completion.
 
 ```lua
 require("nvim-project-config").setup({
@@ -233,11 +233,15 @@ require("nvim-project-config").setup({
 - Before any watchers start monitoring for changes
 
 **Common uses:**
-- Run linters/formatters after config loads
+- Reactive setup that runs whenever a project loads
 - Apply conditional settings based on `ctx.json` values
 - Create project-specific autocommands
 - Log or notify user of loaded project
 - Set up project-specific UI elements
+
+**When to use `on_load` vs `load_await()`:**
+- Use `on_load` for **reactive** setup - runs automatically every time a project loads
+- Use `load_await()` for **imperative** control - wait for load in a specific coroutine
 
 **Note:** The callback runs in the main thread via `vim.schedule()`, ensuring it's safe to interact with Neovim APIs.
 
@@ -596,10 +600,49 @@ The `ctx.json` table uses a recursive metatable that intercepts writes at any de
 local npc = require("nvim-project-config")
 
 npc.setup(opts)       -- Initialize with options
-npc.load()            -- Manually trigger load
+npc.load()            -- Manually trigger load (fire-and-forget)
+npc.load_await()      -- Load and await completion (returns promise-like awaiter)
 npc.clear()           -- Stop pipeline, clear state, prepare for reload
 npc.ctx               -- Current context (mutable)
 ```
+
+### Async/Await Loading
+
+Use `load_await()` to wait for configuration to complete:
+
+```lua
+local npc = require("nvim-project-config")
+local async = require("plenary.async")
+
+npc.setup()
+
+-- Load and wait for completion
+async.run(function()
+  local awaiter = npc.load_await()
+  local ctx = awaiter()
+
+  print("Project loaded: " .. ctx.project_name)
+  print("Config dir: " .. ctx.config_dir)
+
+  -- Your config is now ready, do work here
+end)
+```
+
+**When to use `load_await()`:**
+- Script initialization where you need to wait for config before proceeding
+- Command that depends on project-specific settings
+- Testing or debugging to verify load completion
+- Any scenario where you need to sequence actions after config load
+
+**Comparison:**
+- `npc.load()` - Fire-and-forget, use `on_load` callback for notification
+- `npc.load_await()` - Returns awaiter, blocks coroutine until complete
+
+**Notes:**
+- The awaiter function must be called inside a coroutine (via `async.run()`)
+- Returns the same context passed to `on_load` callback
+- Preserves any existing `on_load` callback (both will be called)
+- Can be called with an override context like `npc.load()`
 
 ### JSON Access
 

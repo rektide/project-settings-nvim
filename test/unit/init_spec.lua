@@ -253,6 +253,231 @@ describe("nvim-project-config main module", function()
     end)
   end)
 
+  describe("load_await", function()
+    it("returns nil when no context exists", function()
+      npc.ctx = nil
+      local result = npc.load_await()
+      assert.is_nil(result)
+    end)
+
+    it("returns an awaiter function", function()
+      local old_ctx = npc.ctx
+      npc.setup()
+      local awaiter = npc.load_await()
+      assert.is_not_nil(awaiter)
+      assert.equals("function", type(awaiter))
+      npc.ctx = old_ctx
+    end)
+
+    it("awaiter function returns context when pipeline completes", function()
+      local old_ctx = npc.ctx
+      local async = require("plenary.async")
+      local called = false
+      local result_ctx = nil
+
+      npc.setup()
+      npc.ctx.pipeline = {
+        function(ctx, rx, tx)
+          tx.send("dummy")
+          tx.send(pipeline.DONE)
+        end,
+        function(ctx, rx, tx)
+          local input = rx()
+          if input ~= pipeline.DONE then
+            if ctx.on_load then
+              ctx.on_load(ctx)
+            end
+          end
+        end,
+      }
+
+      local awaiter = npc.load_await()
+      async.run(function()
+        result_ctx = awaiter()
+        called = true
+      end)
+
+      vim.wait(100, function()
+        return called
+      end)
+
+      assert.is_true(called)
+      assert.equals(npc.ctx, result_ctx)
+      npc.ctx = old_ctx
+    end)
+
+    it("preserves existing on_load callback", function()
+      local old_ctx = npc.ctx
+      local async = require("plenary.async")
+      local on_load_called = false
+      local awaiter_called = false
+      local result_ctx = nil
+
+      npc.setup({
+        on_load = function(ctx)
+          on_load_called = true
+        end,
+      })
+
+      npc.ctx.pipeline = {
+        function(ctx, rx, tx)
+          tx.send("dummy")
+          tx.send(pipeline.DONE)
+        end,
+        function(ctx, rx, tx)
+          local input = rx()
+          if input ~= pipeline.DONE then
+            if ctx.on_load then
+              ctx.on_load(ctx)
+            end
+          end
+        end,
+      }
+
+      local awaiter = npc.load_await()
+      async.run(function()
+        result_ctx = awaiter()
+        awaiter_called = true
+      end)
+
+      vim.wait(100, function()
+        return awaiter_called
+      end)
+
+      assert.is_true(on_load_called)
+      assert.is_true(awaiter_called)
+      assert.equals(npc.ctx, result_ctx)
+      npc.ctx = old_ctx
+    end)
+
+    it("uses provided override context", function()
+      local old_ctx = npc.ctx
+      local async = require("plenary.async")
+      local called = false
+      local on_load_triggered = false
+      local result_ctx = nil
+
+      local override_ctx = {
+        pipeline = {},
+        loading = { start_dir = "/test/dir" },
+        on_load = function(ctx)
+          on_load_triggered = true
+        end,
+      }
+
+      local original_run = pipeline.run
+      pipeline.run = function(ctx, pipe, start_dir)
+        called = true
+        assert.equals(override_ctx, ctx)
+        assert.equals("/test/dir", start_dir)
+        if ctx.on_load then
+          ctx.on_load(ctx)
+        end
+        pipeline.run = original_run
+      end
+
+      local awaiter = npc.load_await(override_ctx)
+      async.run(function()
+        result_ctx = awaiter()
+      end)
+
+      vim.wait(200, function()
+        return called and on_load_triggered and result_ctx ~= nil
+      end)
+
+      assert.is_true(called)
+      assert.is_true(on_load_triggered)
+      assert.equals(override_ctx, result_ctx)
+      npc.ctx = old_ctx
+    end)
+  end)
+
+  describe("load", function()
+    it("returns early when no context exists", function()
+      npc.ctx = nil
+      local result = npc.load()
+      assert.is_nil(result)
+    end)
+
+    it("errors when context is not a table", function()
+      npc.ctx = "invalid"
+      assert.has.errors(function()
+        npc.load()
+      end)
+      npc.ctx = nil
+    end)
+
+    it("uses provided override context", function()
+      local old_ctx = npc.ctx
+      local override_ctx = {
+        pipeline = {},
+        loading = { start_dir = "/test/dir" }
+      }
+      local called = false
+      local original_run = pipeline.run
+      pipeline.run = function(ctx, pipe, start_dir)
+        called = true
+        assert.equals(override_ctx, ctx)
+        assert.equals("/test/dir", start_dir)
+        pipeline.run = original_run
+      end
+      npc.load(override_ctx)
+      assert.is_true(called)
+      npc.ctx = old_ctx
+    end)
+
+    it("uses current working directory when no start_dir specified", function()
+      local old_ctx = npc.ctx
+      npc.setup()
+      local cwd = vim.fn.getcwd()
+      local called = false
+      local original_run = pipeline.run
+      pipeline.run = function(ctx, pipe, start_dir)
+        called = true
+        assert.equals(cwd, start_dir)
+        pipeline.run = original_run
+      end
+      npc.load()
+      assert.is_true(called)
+      npc.ctx = old_ctx
+    end)
+
+    it("uses ctx.loading.start_dir when provided", function()
+      local old_ctx = npc.ctx
+      npc.setup({
+        loading = { start_dir = "/custom/path" }
+      })
+      local called = false
+      local original_run = pipeline.run
+      pipeline.run = function(ctx, pipe, start_dir)
+        called = true
+        assert.equals("/custom/path", start_dir)
+        pipeline.run = original_run
+      end
+      npc.load()
+      assert.is_true(called)
+      npc.ctx = old_ctx
+    end)
+
+    it("calls pipeline.run with context and pipeline", function()
+      local old_ctx = npc.ctx
+      npc.setup()
+      local called = false
+      local original_run = pipeline.run
+      pipeline.run = function(ctx, pipe, start_dir)
+        called = true
+        assert.equals(npc.ctx, ctx)
+        assert.is_not_nil(pipe)
+        assert.equals("table", type(pipe))
+        assert.is_not_nil(start_dir)
+        pipeline.run = original_run
+      end
+      npc.load()
+      assert.is_true(called)
+      npc.ctx = old_ctx
+    end)
+  end)
+
   describe("clear", function()
     it("returns early when no context exists", function()
       npc.ctx = nil
