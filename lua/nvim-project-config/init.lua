@@ -157,7 +157,10 @@ function M.setup(opts)
   local loading_on = config.loading.on
   if loading_on == "startup" then
     vim.schedule(function()
-      M.load_await()
+      local wait_fn = M.load_await()
+      if wait_fn then
+        wait_fn()
+      end
     end)
   elseif loading_on == "lazy" then
     local augroup = vim.api.nvim_create_augroup("nvim_project_config_lazy", { clear = true })
@@ -165,7 +168,10 @@ function M.setup(opts)
       group = augroup,
       once = true,
       callback = function()
-        M.load_await()
+        local wait_fn = M.load_await()
+        if wait_fn then
+          wait_fn()
+        end
       end,
     })
   else

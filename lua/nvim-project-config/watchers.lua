@@ -21,9 +21,9 @@ local function debounced_reload(ctx, new_start_dir)
       local main = require("nvim-project-config")
       main.clear(ctx)
       if new_start_dir then
-        main.load(vim.tbl_extend("force", ctx, { start_dir = new_start_dir }))
+        main.load_await(vim.tbl_extend("force", ctx, { start_dir = new_start_dir }))()
       else
-        main.load(ctx)
+        main.load_await(ctx)()
       end
     end)
   end)
