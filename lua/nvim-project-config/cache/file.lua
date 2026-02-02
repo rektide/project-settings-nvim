@@ -45,8 +45,10 @@ end
 
 local function write_file(path, content)
   print("[NPC] write_file: " .. path .. " (len: " .. #content .. ")")
+  print("[NPC] content type:", type(content), "value:", content)
 
   local fd = uv.fs_open(path, "w", 438)
+  print("[NPC] fd:", fd)
   if not fd then
     return false, "Failed to open file"
   end
@@ -60,6 +62,7 @@ local function write_file(path, content)
   end
 
   local stat = uv.fs_stat(path)
+  print("[NPC] stat:", stat and stat.mtime.sec or "nil")
   return true, stat and stat.mtime.sec or nil
 end
 
