@@ -150,35 +150,39 @@ Missing:
 - Testing of async/await behavior
 - Reliable async stage testing
 
-## Current Test Status (2024-02-01)
+## Current Test Status (2024-02-01) ✅ ALL TESTS PASSING
 
-**Passing consistently:**
-- test/unit/matchers_spec.lua: 17/17 passing (simple callback tests)
+**All tests passing (129 total):**
+- test/unit/matchers_spec.lua: 17/17 passing
 - test/unit/stages/walk_spec.lua: 6/6 passing
 - test/unit/stages/detect_spec.lua: 10/10 passing ✓ (FIXED - converted to a.it())
-- test/unit/stages_and_executors_spec.lua: 10/10 passing (structure tests)
+- test/unit/stages_and_executors_spec.lua: 10/10 passing
 - test/unit/watchers_spec.lua: 8/8 passing
-- test/unit/init_spec.lua: 51/51 passing
+- test/unit/init_spec.lua: 51/51 passing (added cleanup)
+- test/unit/cache/file_spec.lua: 8/8 passing ✓ (FIXED - sync uv operations)
+- test/unit/cache/directory_spec.lua: 7/7 passing ✓ (FIXED - sync uv operations)
 - test/integration/basic_spec.lua: 12/12 passing
 
-**Pre-existing issues (not related to async pattern):**
-- test/unit/cache/file_spec.lua: Tests hang after completion
-- test/unit/cache/directory_spec.lua: Tests hang after completion
-  - This is a pre-existing issue with uv.fs_* operations in cleanup()
-  - Not related to async.run() or a.it() pattern
+**Issues Fixed:**
 
-**Root cause of flaky tests (now FIXED):**
-The pattern `it("name", function(done) ... async.run(function() ... done() end)` is broken:
-- `done()` callback is not properly captured in async.run() closure
-- Error: "attempt to call upvalue 'done' (a nil value)"
+1. **detect_spec async tests** (3 tests):
+   - Converted from broken `async.run() + done()` pattern to `a.it()` pattern
+   - Added `require("plenary.async").tests.add_to_env()` at top of file
+   - Changed `async.run()` to `a.run()`
+   - Asserts now run directly in `a.it()` context
 
-**Solution applied:**
-Converted failing tests to use `a.it()` pattern:
-1. Add `require("plenary.async").tests.add_to_env()` at top of file
-2. Use `a.it()` instead of `it()` for async tests
-3. Remove `done()` parameter and callback calls
-4. Use `a.run()` instead of `async.run()`
-5. Asserts run directly in a.it() context without nested async.run()
+2. **Cache tests hanging** (2 files):
+   - Replaced `plenary.async.uv` with `vim.loop` for synchronous operations
+   - `uv.fs_mkdir()`, `uv.fs_stat()`, `uv.fs_unlink()` etc. are async
+   - `vim.loop` provides synchronous versions that work in non-async context
+   - Tests no longer hang after completion
+
+3. **Test suite hanging after completion**:
+   - Added `after_each()` to `init_spec.lua` to call `npc.clear()`
+   - Ensures proper cleanup of watchers, timers, and autocommands
+   - Changed `q!` to `qa!` in package.json for force quit
+
+**Test Execution Time:** ~0.36 seconds for 129 tests
 
 ## Next Steps
 
