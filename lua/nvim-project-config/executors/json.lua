@@ -88,6 +88,12 @@ local function json_executor(ctx, file_path)
   if matches_project_name(file_path, ctx.project_name) then
     ctx._last_project_json = file_path
   end
+  
+  -- Set _last_project_json even if file doesn't exist yet
+  -- This ensures reactive writes can create new files
+  if not ctx._last_project_json and matches_project_name(file_path, ctx.project_name) then
+    ctx._last_project_json = file_path
+  end
 
   if ctx.file_cache then
     local cached = ctx.file_cache._cache and ctx.file_cache._cache[file_path]
