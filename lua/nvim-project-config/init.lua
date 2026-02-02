@@ -1,6 +1,7 @@
 --- Main entry point for nvim-project-config
 --- @module nvim-project-config
 
+local async = require("plenary.async")
 local pipeline = require("nvim-project-config.pipeline")
 local watchers = require("nvim-project-config.watchers")
 local dir_cache = require("nvim-project-config.cache.directory")
@@ -156,22 +157,24 @@ function M.setup(opts)
 
   local loading_on = config.loading.on
   if loading_on == "startup" then
-    vim.schedule(function()
+    async.void(function()
       local wait_fn = M.load_await()
       if wait_fn then
         wait_fn()
       end
-    end)
+    end)()
   elseif loading_on == "lazy" then
     local augroup = vim.api.nvim_create_augroup("nvim_project_config_lazy", { clear = true })
     vim.api.nvim_create_autocmd("BufEnter", {
       group = augroup,
       once = true,
       callback = function()
-        local wait_fn = M.load_await()
-        if wait_fn then
-          wait_fn()
-        end
+        async.void(function()
+          local wait_fn = M.load_await()
+          if wait_fn then
+            wait_fn()
+          end
+        end)()
       end,
     })
   else
@@ -192,7 +195,6 @@ function M.load(override_ctx)
 end
 
 function M.load_await(override_ctx)
-  local async = require("plenary.async")
   local channel = require("plenary.async.control").channel
 
   local ctx = override_ctx or M.ctx
