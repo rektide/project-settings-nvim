@@ -199,6 +199,118 @@ require("nvim-project-config").setup({
 })
 ```
 
+## Callbacks
+
+### `on_load(ctx)` - Ready Signal
+
+Called when the configuration pipeline completes successfully. Use this to perform actions after project configuration is fully loaded.
+
+```lua
+require("nvim-project-config").setup({
+  on_load = function(ctx)
+    -- Project configuration is ready
+    print("Loaded: " .. ctx.project_name)
+
+    -- Apply settings based on loaded config
+    if ctx.json and ctx.json.formatter then
+      vim.cmd("compiler " .. ctx.json.formatter)
+    end
+
+    -- Create autocommands for this project
+    vim.api.nvim_create_autocmd("BufWritePost", {
+      pattern = "*.ts",
+      callback = function()
+        -- Project-specific save hook
+      end,
+    })
+  end,
+})
+```
+
+**When called:**
+- After all pipeline stages complete successfully
+- After all config files are executed and merged
+- Before any watchers start monitoring for changes
+
+**Common uses:**
+- Run linters/formatters after config loads
+- Apply conditional settings based on `ctx.json` values
+- Create project-specific autocommands
+- Log or notify user of loaded project
+- Set up project-specific UI elements
+
+**Note:** The callback runs in the main thread via `vim.schedule()`, ensuring it's safe to interact with Neovim APIs.
+
+### `on_error(err, ctx, file)` - Error Handler
+
+Called when a configuration file fails to execute or parse. The pipeline continues loading other files.
+
+```lua
+require("nvim-project-config").setup({
+  on_error = function(err, ctx, file)
+    vim.notify("Config error: " .. file .. "\n" .. tostring(err), vim.log.levels.WARN)
+  end,
+})
+```
+
+**Parameters:**
+- `err`: Error object or message
+- `ctx`: Current pipeline context
+- `file`: Path to the file that caused the error (optional)
+
+**When called:**
+- When a config file has syntax errors (Lua/Vim)
+- When JSON files fail to parse
+- When executors throw errors during execution
+
+**Note:** Unlike `on_load`, this callback also runs via `vim.schedule()` for main-thread safety.
+
+### `on_clear(ctx)` - Cleanup Hook
+
+Called when the context is cleared (e.g., when switching to a different project). Use this to clean up resources.
+
+```lua
+require("nvim-project-config").setup({
+  on_clear = function(ctx)
+    -- Clear project-specific state
+    if ctx.project_name == "monorepo" then
+      vim.api.nvim_del_autocmd("MyProjectAutoGroup")
+    end
+
+    print("Cleared: " .. (ctx.project_name or "unknown"))
+  end,
+})
+```
+
+**When called:**
+- When you call `npc.clear()` explicitly
+- When watchers detect a directory change and reload (indirectly)
+- Before a new project loads
+
+**Common uses:**
+- Delete project-specific autocommands
+- Clear buffer-local settings
+- Close project-specific UI elements
+- Reset temporary variables
+
+### Callback Execution Order
+
+For a typical project load:
+
+1. Pipeline starts (`walk` → `detect` → `find_files` → `execute`)
+2. Config files execute (may trigger `on_error` if files fail)
+3. Pipeline completes successfully
+4. **`on_load` is called** ← **This is your ready signal**
+5. Watchers start monitoring (if configured)
+
+When switching projects or reloading:
+
+1. `on_clear` is called for old project
+2. Pipeline restarts for new project
+3. Config files execute
+4. **`on_load` is called** for new project
+```
+
 ### Flexible Matching
 
 Matchers are a core concept supporting multiple forms:
@@ -566,11 +678,7 @@ end
 
 ## TODO
 
-- ready signal
 - commit tests
-- File/directory cache not fully integrated (using sync I/O for now)
-- Watchers not tested
-- Recursive metatable for nested JSON writes needs more work
 
 ## License
 

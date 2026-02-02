@@ -616,7 +616,7 @@ describe("nvim-project-config main module", function()
       npc.ctx = old_ctx
     end)
 
-    it("allows iterating over pairs", function()
+    it("allows reading multiple values", function()
       local old_ctx = npc.ctx
       local function make_reactive_table(on_change, parent_path)
         parent_path = parent_path or {}
