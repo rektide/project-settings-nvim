@@ -7,8 +7,12 @@ local async = require("plenary.async")
 --- @param ctx table pipeline context with json data and _last_project_json path
 --- @return boolean success
 local function write_json(ctx)
+  -- Compute expected path if not set (happens when file is deleted)
   if not ctx._last_project_json then
-    return false
+    if not ctx.project_name or not ctx.config_dir then
+      return false
+    end
+    ctx._last_project_json = ctx.config_dir .. "/" .. ctx.project_name .. ".json"
   end
 
   local raw_json = {}
