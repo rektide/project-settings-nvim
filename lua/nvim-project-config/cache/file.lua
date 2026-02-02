@@ -44,42 +44,33 @@ local function read_file(path)
 end
 
 local function write_file(path, content)
-  local ok, err = pcall(function()
-    print("[NPC] write_file START: " .. path)
-    print("[NPC] content len: " .. #content)
-    print("[NPC] content type: " .. type(content))
+  print("[NPC] write_file START: " .. path)
+  print("[NPC] content len: " .. #content)
 
-    local fd = uv.fs_open(path, "w", 438)
-    print("[NPC] fd opened: " .. tostring(fd))
+  -- plenary.async.uv returns (err, fd) NOT (fd, err)!
+  local err, fd = uv.fs_open(path, "w", 438)
+  print("[NPC] fs_open result - err: " .. tostring(err) .. " fd: " .. tostring(fd))
 
-    if not fd then
-      print("[NPC] ERROR: Failed to open file")
-      return false, "Failed to open file"
-    end
-
-    local write_result, write_err = uv.fs_write(fd, content, 0)
-    print("[NPC] uv.fs_write result: " .. tostring(write_result))
-    print("[NPC] uv.fs_write err: " .. tostring(write_err))
-
-    uv.fs_close(fd)
-    print("[NPC] fd closed")
-
-    if write_err then
-      print("[NPC] ERROR: Write failed: " .. tostring(write_err))
-      return false, "Write error: " .. tostring(write_err)
-    end
-
-    local stat = uv.fs_stat(path)
-    print("[NPC] file stat: " .. tostring(stat and stat.mtime.sec))
-    return true, stat and stat.mtime.sec or nil
-  end)
-
-  if not ok then
-    print("[NPC] CRASH in write_file: " .. tostring(err))
-    return false, "Crash: " .. tostring(err)
+  if err then
+    print("[NPC] ERROR: Failed to open file - " .. tostring(err))
+    return false, "Failed to open file: " .. tostring(err)
   end
 
-  return ok, err
+  -- uv.fs_write also returns (err, bytes_written)
+  local write_err, write_result = uv.fs_write(fd, content, -1)
+  print("[NPC] fs_write result - err: " .. tostring(write_err) .. " written: " .. tostring(write_result))
+
+  uv.fs_close(fd)
+  print("[NPC] fd closed")
+
+  if write_err then
+    print("[NPC] ERROR: Write failed - " .. tostring(write_err))
+    return false, "Write error: " .. tostring(write_err)
+  end
+
+  local stat = uv.fs_stat(path)
+  print("[NPC] file stat: " .. tostring(stat and stat.mtime.sec))
+  return true, stat and stat.mtime.sec or nil
 end
 
 -- ============================================================================
@@ -120,8 +111,8 @@ local sender, receiver = channel.mpsc()
 
 -- Consumer coroutine - runs in async context, safe to use uv.fs_write
 -- Each write is processed individually; the channel handles the async boundary
--- Use async.run() with callback pattern for long-running consumers
-async.run(function()
+-- Use async.void() for fire-and-forget pattern (consumer runs forever)
+async.void(function()
   print("[NPC] Async write consumer started")
   while true do
     -- Wait for a write request (blocks in async context)
@@ -142,10 +133,7 @@ async.run(function()
       print("[NPC] Write succeeded: " .. write_req.path)
     end
   end
-end, function()
-  -- Callback when coroutine ends (shouldn't happen)
-  print("[NPC] Consumer ended (shouldn't happen)")
-end)
+end)()
 
 -- Queue function - NON-ASYNC, safe to call from __newindex
 local function queue_write(path, data)
