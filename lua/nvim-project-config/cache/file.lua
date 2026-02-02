@@ -107,6 +107,14 @@ function FileCache:write_async(path, data)
   return true
 end
 
+function FileCache:clear_all()
+  self._cache = {}
+end
+
+function FileCache:invalidate(path)
+  self._cache[path] = nil
+end
+
 return {
   new = FileCache.new,
   _queue_write = function(path, data)

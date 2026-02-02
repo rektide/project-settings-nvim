@@ -6,6 +6,7 @@ describe("nvim-project-config main module", function()
     if npc.ctx then
       npc.clear()
     end
+    npc._initialized = false
   end)
 
   describe("setup", function()
@@ -292,7 +293,7 @@ describe("nvim-project-config main module", function()
       }
 
       local awaiter = npc.load_await()
-      coop.spawn(function()
+      async.spawn(function()
         result_ctx = awaiter()
         called = true
       end)
@@ -335,7 +336,7 @@ describe("nvim-project-config main module", function()
       }
 
       local awaiter = npc.load_await()
-      coop.spawn(function()
+      async.spawn(function()
         result_ctx = awaiter()
         awaiter_called = true
       end)
@@ -377,7 +378,7 @@ describe("nvim-project-config main module", function()
       end
 
       local awaiter = npc.load_await(override_ctx)
-      coop.spawn(function()
+      async.spawn(function()
         result_ctx = awaiter()
       end)
 

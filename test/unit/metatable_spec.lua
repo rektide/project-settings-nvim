@@ -1,12 +1,17 @@
 describe("reactive metatable", function()
   local old_ctx
-
+ 
   before_each(function()
     old_ctx = require("nvim-project-config").ctx
   end)
-
+ 
   after_each(function()
-    require("nvim-project-config").ctx = old_ctx
+    local npc = require("nvim-project-config")
+    if npc.ctx then
+      npc.clear()
+    end
+    npc.ctx = old_ctx
+    npc._initialized = false
   end)
 
   local function make_reactive_table(on_change, parent_path)
