@@ -120,8 +120,8 @@ local sender, receiver = channel.mpsc()
 
 -- Consumer coroutine - runs in async context, safe to use uv.fs_write
 -- Each write is processed individually; the channel handles the async boundary
--- Using async.run() like the rest of nvim-project-config does
-async.run(function()
+-- Using async.void() for fire-and-forget pattern (consumer runs forever)
+async.void(function()
   print("[NPC] Async write consumer started")
   while true do
     -- Wait for a write request (blocks in async context)
@@ -129,7 +129,7 @@ async.run(function()
     local write_req = receiver.recv()
     print("[NPC] Got write request: " .. write_req.path)
 
-    -- Write the file (safe because we're in async coroutine)
+    -- Write the file (safe because we're in an async coroutine)
     local ok, err = pcall(function()
       return write_file(write_req.path, write_req.data)
     end)
@@ -142,9 +142,7 @@ async.run(function()
       print("[NPC] Write succeeded: " .. write_req.path)
     end
   end
-end, function()
-  print("[NPC] Consumer exited (shouldn't happen)")
-end)
+end)()
 
 -- Queue function - NON-ASYNC, safe to call from __newindex
 local function queue_write(path, data)
