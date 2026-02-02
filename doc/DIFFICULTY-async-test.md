@@ -153,27 +153,32 @@ Missing:
 ## Current Test Status (2024-02-01)
 
 **Passing consistently:**
-- test/unit/cache/file_spec.lua: All non-async and callback-based tests
-- test/unit/cache/directory_spec.lua: All non-async and callback-based tests
 - test/unit/matchers_spec.lua: 17/17 passing (simple callback tests)
 - test/unit/stages/walk_spec.lua: 6/6 passing
-- test/unit/stages/detect_spec.lua: 7/10 passing (non-async tests)
+- test/unit/stages/detect_spec.lua: 10/10 passing ✓ (FIXED - converted to a.it())
 - test/unit/stages_and_executors_spec.lua: 10/10 passing (structure tests)
 - test/unit/watchers_spec.lua: 8/8 passing
 - test/unit/init_spec.lua: 51/51 passing
 - test/integration/basic_spec.lua: 12/12 passing
 
-**Flaky/failing:**
-- test/unit/stages/detect_spec.lua: 3/10 tests fail with "done is nil" error
-  - "function matcher calls function matcher with path"
-  - "nil matcher always matches"
-  - "on_match callback is called with ctx and path when matched"
+**Pre-existing issues (not related to async pattern):**
+- test/unit/cache/file_spec.lua: Tests hang after completion
+- test/unit/cache/directory_spec.lua: Tests hang after completion
+  - This is a pre-existing issue with uv.fs_* operations in cleanup()
+  - Not related to async.run() or a.it() pattern
 
-**Root cause of flaky tests:**
-The pattern `async.run(function() ... done() end)` is fundamentally broken:
+**Root cause of flaky tests (now FIXED):**
+The pattern `it("name", function(done) ... async.run(function() ... done() end)` is broken:
 - `done()` callback is not properly captured in async.run() closure
 - Error: "attempt to call upvalue 'done' (a nil value)"
-- Tests sometimes pass (race condition) but usually timeout or fail
+
+**Solution applied:**
+Converted failing tests to use `a.it()` pattern:
+1. Add `require("plenary.async").tests.add_to_env()` at top of file
+2. Use `a.it()` instead of `it()` for async tests
+3. Remove `done()` parameter and callback calls
+4. Use `a.run()` instead of `async.run()`
+5. Asserts run directly in a.it() context without nested async.run()
 
 ## Next Steps
 

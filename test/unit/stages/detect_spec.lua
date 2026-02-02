@@ -1,4 +1,5 @@
 describe("detect stage", function()
+  require("plenary.async").tests.add_to_env()
   local detect = require("nvim-project-config.stages.detect")
   local pipeline = require("nvim-project-config.pipeline")
   local async = require("plenary.async")
@@ -139,7 +140,7 @@ describe("detect stage", function()
   end)
 
   describe("function matcher", function()
-    it("calls function matcher with path", function(done)
+    a.it("calls function matcher with path", function()
       local channel = require("plenary.async.control").channel
       local input_tx, input_rx = channel.mpsc()
       local output_tx, output_rx = channel.mpsc()
@@ -158,23 +159,20 @@ describe("detect stage", function()
         end,
       })
 
-      async.run(function()
+      a.run(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
-        local path = output_rx.recv()
-        assert.equals("/test/path", path)
+      local path = output_rx.recv()
+      assert.equals("/test/path", path)
 
-        assert.is_true(#matched_paths > 0)
-        assert.is_true(vim.tbl_contains(matched_paths, "/test/path"))
-        done()
-      end)
+      assert.is_true(#matched_paths > 0)
+      assert.is_true(vim.tbl_contains(matched_paths, "/test/path"))
     end)
   end)
 
   describe("nil matcher", function()
-    it("always matches", function(done)
+    a.it("always matches", function()
       local channel = require("plenary.async.control").channel
       local input_tx, input_rx = channel.mpsc()
       local output_tx, output_rx = channel.mpsc()
@@ -191,22 +189,19 @@ describe("detect stage", function()
         end,
       })
 
-      async.run(function()
+      a.run(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
-        local path = output_rx.recv()
-        assert.equals("/any/path", path)
+      local path = output_rx.recv()
+      assert.equals("/any/path", path)
 
-        assert.is_true(matched)
-        done()
-      end)
+      assert.is_true(matched)
     end)
   end)
 
   describe("on_match callback", function()
-    it("is called with ctx and path when matched", function(done)
+    a.it("is called with ctx and path when matched", function()
       local channel = require("plenary.async.control").channel
       local input_tx, input_rx = channel.mpsc()
       local output_tx, output_rx = channel.mpsc()
@@ -224,19 +219,16 @@ describe("detect stage", function()
         end,
       })
 
-      async.run(function()
+      a.run(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
-        local path = output_rx.recv()
-        assert.equals("/", path)
+      local path = output_rx.recv()
+      assert.equals("/", path)
 
-        assert.equals(ctx, received_ctx)
-        assert.equals("/", received_path)
-        assert.equals("ctx", received_ctx.test_value)
-        done()
-      end)
+      assert.equals(ctx, received_ctx)
+      assert.equals("/", received_path)
+      assert.equals("ctx", received_ctx.test_value)
     end)
   end)
 
