@@ -1,5 +1,4 @@
-local async = require("plenary.async")
-local uv = async.uv
+local uv = vim.loop
 
 local FileCache = {}
 FileCache.__index = FileCache
@@ -12,8 +11,8 @@ function FileCache.new(opts)
   }, FileCache)
 end
 
--- Pure coroutine helpers (must be called from within async context)
-local function read_file_coro(path)
+-- Synchronous file helpers (using vim.loop directly)
+local function read_file(path)
   local stat = uv.fs_stat(path)
   if not stat then
     return nil
@@ -39,7 +38,7 @@ local function read_file_coro(path)
   }
 end
 
-local function write_file_coro(path, content)
+local function write_file(path, content)
   local fd = uv.fs_open(path, "w", 438)
   if not fd then
     return false, nil
@@ -56,29 +55,29 @@ local function write_file_coro(path, content)
   return true, stat and stat.mtime.sec or nil
 end
 
-local function get_mtime_coro(path)
+local function get_mtime(path)
   local stat = uv.fs_stat(path)
   return stat and stat.mtime.sec or nil
 end
 
--- Primary async API (call from within async.run or coroutine context)
+-- Primary synchronous API
 function FileCache:get_async(path)
   local cached = self._cache[path]
 
   if not cached or not self.trust_mtime then
-    local entry = read_file_coro(path)
+    local entry = read_file(path)
     if entry then
       self._cache[path] = entry
     end
     return entry
   end
 
-  local mtime = get_mtime_coro(path)
+  local mtime = get_mtime(path)
   if mtime and mtime == cached.mtime then
     return cached
   end
 
-  local entry = read_file_coro(path)
+  local entry = read_file(path)
   if entry then
     self._cache[path] = entry
   else
@@ -93,7 +92,7 @@ function FileCache:write_async(path, data)
     return false
   end
 
-  local ok, mtime = write_file_coro(path, content)
+  local ok, mtime = write_file(path, content)
   if ok and mtime then
     self._cache[path] = {
       path = path,
