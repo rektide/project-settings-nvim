@@ -44,7 +44,7 @@ local function read_file(path)
 end
 
 local function write_file(path, content)
-  vim.notify("write_file: " .. path .. " (len: " .. #content .. ")", vim.log.levels.INFO)
+  print("[NPC] write_file: " .. path .. " (len: " .. #content .. ")")
 
   local fd = uv.fs_open(path, "w", 438)
   if not fd then
@@ -52,7 +52,7 @@ local function write_file(path, content)
   end
 
   local result, err = uv.fs_write(fd, content, 0)
-  vim.notify("uv.fs_write: result=" .. tostring(result) .. " err=" .. tostring(err), vim.log.levels.INFO)
+  print("[NPC] uv.fs_write: result=" .. tostring(result) .. " err=" .. tostring(err))
   uv.fs_close(fd)
 
   if err then
@@ -102,24 +102,24 @@ local sender, receiver = channel.mpsc()
 -- Consumer coroutine - runs in async context, safe to use uv.fs_write
 -- Each write is processed individually; the channel handles the async boundary
 async.void(function()
-  vim.notify("Async write consumer started", vim.log.levels.INFO)
+  print("[NPC] Async write consumer started")
   while true do
     -- Wait for a write request (blocks in async context)
-    vim.notify("Waiting for write request...", vim.log.levels.INFO)
+    print("[NPC] Waiting for write request...")
     local write_req = receiver.recv()
-    vim.notify("Got write request: " .. write_req.path, vim.log.levels.INFO)
+    print("[NPC] Got write request: " .. write_req.path)
 
     -- Write the file (safe because we're in async coroutine)
     local ok, err = write_file(write_req.path, write_req.data)
     if not ok then
-      vim.notify("Failed to write file: " .. write_req.path .. " - " .. tostring(err), vim.log.levels.ERROR)
+      print("[NPC] Failed to write file: " .. write_req.path .. " - " .. tostring(err))
     end
   end
 end)()
 
 -- Queue function - NON-ASYNC, safe to call from __newindex
 local function queue_write(path, data)
-  vim.notify("queue_write: " .. path .. " (len: " .. #data .. ")", vim.log.levels.INFO)
+  print("[NPC] queue_write: " .. path .. " (len: " .. #data .. ")")
   sender.send({ path = path, data = data })
 end
 
