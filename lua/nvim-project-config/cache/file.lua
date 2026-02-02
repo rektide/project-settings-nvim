@@ -44,26 +44,42 @@ local function read_file(path)
 end
 
 local function write_file(path, content)
-  print("[NPC] write_file: " .. path .. " (len: " .. #content .. ")")
-  print("[NPC] content type:", type(content), "value:", content)
+  local ok, err = pcall(function()
+    print("[NPC] write_file START: " .. path)
+    print("[NPC] content len: " .. #content)
+    print("[NPC] content type: " .. type(content))
 
-  local fd = uv.fs_open(path, "w", 438)
-  print("[NPC] fd:", fd)
-  if not fd then
-    return false, "Failed to open file"
+    local fd = uv.fs_open(path, "w", 438)
+    print("[NPC] fd opened: " .. tostring(fd))
+
+    if not fd then
+      print("[NPC] ERROR: Failed to open file")
+      return false, "Failed to open file"
+    end
+
+    local write_result, write_err = uv.fs_write(fd, content, 0)
+    print("[NPC] uv.fs_write result: " .. tostring(write_result))
+    print("[NPC] uv.fs_write err: " .. tostring(write_err))
+
+    uv.fs_close(fd)
+    print("[NPC] fd closed")
+
+    if write_err then
+      print("[NPC] ERROR: Write failed: " .. tostring(write_err))
+      return false, "Write error: " .. tostring(write_err)
+    end
+
+    local stat = uv.fs_stat(path)
+    print("[NPC] file stat: " .. tostring(stat and stat.mtime.sec))
+    return true, stat and stat.mtime.sec or nil
+  end)
+
+  if not ok then
+    print("[NPC] CRASH in write_file: " .. tostring(err))
+    return false, "Crash: " .. tostring(err)
   end
 
-  local result, err = uv.fs_write(fd, content, 0)
-  print("[NPC] uv.fs_write: result=" .. tostring(result) .. " err=" .. tostring(err))
-  uv.fs_close(fd)
-
-  if err then
-    return false, "Write error: " .. tostring(err)
-  end
-
-  local stat = uv.fs_stat(path)
-  print("[NPC] stat:", stat and stat.mtime.sec or "nil")
-  return true, stat and stat.mtime.sec or nil
+  return ok, err
 end
 
 -- ============================================================================
