@@ -2,8 +2,7 @@
 --- Finds config files based on project name and config directory
 --- @module nvim-project-config.stages.find_files
 
-local async = require("plenary.async")
-local uv = async.uv
+local uv = require("coop.uv")
 
 local EXTENSION_ORDER = { ".json", ".lua", ".vim" }
 
@@ -21,16 +20,16 @@ local function collect_files_from_dir(dir_path, extensions, dir_cache)
   local entries
 
   if dir_cache then
-    entries = dir_cache:_get_async(dir_path)
+    entries = dir_cache:get_async(dir_path)
   else
-    local fd = uv.fs_opendir(dir_path, nil, 100)
-    if not fd then
+    local err, fd = uv.fs_opendir(dir_path, nil, 100)
+    if err or not fd then
       return files
     end
     entries = {}
     while true do
-      local batch = uv.fs_readdir(fd)
-      if not batch then
+      local readdir_err, batch = uv.fs_readdir(fd)
+      if readdir_err or not batch then
         break
       end
       for _, entry in ipairs(batch) do
@@ -88,7 +87,7 @@ local function find_files(opts)
       if ctx._pipeline_stopped then
         return
       end
-      
+
       local path = input_rx.recv()
       if path == nil or path == pipeline.DONE then
         break
@@ -129,7 +128,7 @@ local function find_files(opts)
         end
 
         local dir_path = config_dir .. "/" .. segment
-        local err, dir_stat = uv.fs_stat(dir_path)
+        local dir_stat_err, dir_stat = uv.fs_stat(dir_path)
         if dir_stat and dir_stat.type == "directory" then
           local dir_files = collect_files_from_dir(dir_path, opts.extensions, ctx.dir_cache)
           for _, f in ipairs(dir_files) do

@@ -1,14 +1,29 @@
-local async = require("plenary.async")
-local channel = require("plenary.async.control").channel
+local coop = require("coop")
+local MpscQueue = require("coop.mpsc-queue").MpscQueue
 
 local M = {}
 
-M.DONE = {} -- Sentinel value to signal end of stream
+M.DONE = {}
 
 local function noop_sender()
   return {
     send = function() end,
   }
+end
+
+local function create_channel()
+  local queue = MpscQueue.new()
+  local sender = {
+    send = function(value)
+      queue:push(value)
+    end,
+  }
+  local receiver = {
+    recv = function()
+      return queue:pop()
+    end,
+  }
+  return sender, receiver
 end
 
 function M.run(ctx, stages, initial_input)
@@ -17,11 +32,11 @@ function M.run(ctx, stages, initial_input)
   local pending = #stages
 
   for i = 1, #stages + 1 do
-    local tx, rx = channel.mpsc()
+    local tx, rx = create_channel()
     ctx.channels[i] = { tx = tx, rx = rx }
   end
 
-  async.run(function()
+  coop.spawn(function()
     ctx.channels[1].tx.send(initial_input)
     ctx.channels[1].tx.send(M.DONE)
   end)
@@ -30,7 +45,7 @@ function M.run(ctx, stages, initial_input)
     local input_rx = ctx.channels[i].rx
     local output_tx = (i < #stages) and ctx.channels[i + 1].tx or noop_sender()
 
-    async.run(function()
+    coop.spawn(function()
       local ok, err = pcall(function()
         stage(ctx, input_rx, output_tx)
       end)

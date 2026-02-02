@@ -1,8 +1,6 @@
 --- Execute stage: routes config files to extension-specific executors
 --- @module nvim-project-config.stages.execute
 
-local async = require("plenary.async")
-
 --- Create an execute stage that runs config files
 --- @param opts table|nil options
 --- @param opts.router table extension -> executor mapping
@@ -19,7 +17,7 @@ local function execute(opts)
       if ctx._pipeline_stopped then
         return
       end
-      
+
       local file_path = input_rx.recv()
       if file_path == nil or file_path == pipeline.DONE then
         break

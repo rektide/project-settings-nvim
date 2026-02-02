@@ -1,7 +1,6 @@
 --- Walk stage: walks directories upward from input path toward root
 --- @module nvim-project-config.stages.walk
 
-local async = require("plenary.async")
 local matchers = require("nvim-project-config.matchers")
 
 --- Create a walk stage that walks directories upward
@@ -30,7 +29,7 @@ local function walk(opts)
       if ctx._pipeline_stopped then
         return
       end
-      
+
       if matcher(current) then
         output_tx.send(current)
       end

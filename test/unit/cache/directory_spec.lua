@@ -1,5 +1,5 @@
 describe("DirectoryCache", function()
-  local uv = vim.loop
+  local uv = vim.uv
   local tmp_dir
   local dir_cache
 

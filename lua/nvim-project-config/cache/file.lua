@@ -1,6 +1,6 @@
-local async = require("plenary.async")
-local channel = async.control.channel
-local uv = async.uv
+local coop = require("coop")
+local uv = require("coop.uv")
+local MpscQueue = require("coop.mpsc-queue").MpscQueue
 
 local FileCache = {}
 FileCache.__index = FileCache
@@ -13,25 +13,21 @@ function FileCache.new(opts)
   }, FileCache)
 end
 
--- ============================================================================
--- ASYNC FILE OPERATIONS (Must be called from coroutine context)
--- ============================================================================
-
 local function read_file(path)
-  local stat = uv.fs_stat(path)
-  if not stat then
+  local err, stat = uv.fs_stat(path)
+  if err or not stat then
     return nil
   end
 
-  local fd = uv.fs_open(path, "r", 438)
-  if not fd then
+  local open_err, fd = uv.fs_open(path, "r", 438)
+  if open_err or not fd then
     return nil
   end
 
-  local content = uv.fs_read(fd, stat.size, 0)
+  local read_err, content = uv.fs_read(fd, stat.size, 0)
   uv.fs_close(fd)
 
-  if not content then
+  if read_err or not content then
     return nil
   end
 
@@ -44,28 +40,22 @@ local function read_file(path)
 end
 
 local function write_file(path, content)
-  -- plenary.async.uv returns (err, fd) NOT (fd, err)!
   local err, fd = uv.fs_open(path, "w", 438)
 
   if err then
     return false, "Failed to open file: " .. tostring(err)
   end
 
-  -- uv.fs_write also returns (err, bytes_written)
-  local write_err, write_result = uv.fs_write(fd, content, -1)
+  local write_err, bytes = uv.fs_write(fd, content, -1)
   uv.fs_close(fd)
 
   if write_err then
     return false, "Write error: " .. tostring(write_err)
   end
 
-  local stat = uv.fs_stat(path)
+  local stat_err, stat = uv.fs_stat(path)
   return true, stat and stat.mtime.sec or nil
 end
-
--- ============================================================================
--- ASYNC READ CACHE (Reads from coroutine, safe async)
--- ============================================================================
 
 function FileCache:get_async(path)
   local cached = self._cache[path]
@@ -78,8 +68,8 @@ function FileCache:get_async(path)
     return entry
   end
 
-  local mtime = uv.fs_stat(path)
-  if mtime and mtime.mtime.sec == cached.mtime then
+  local err, mtime = uv.fs_stat(path)
+  if not err and mtime and mtime.mtime.sec == cached.mtime then
     return cached
   end
 
@@ -92,36 +82,16 @@ function FileCache:get_async(path)
   return entry
 end
 
--- ============================================================================
--- ASYNC WRITE CHANNEL (Bridges non-async to async for file writes)
--- ============================================================================
+local write_queue = MpscQueue.new()
 
--- Create MPSC channel for write requests
-local sender, receiver = channel.mpsc()
-
--- Consumer coroutine - runs in async context, safe to use uv.fs_write
--- Each write is processed individually; the channel handles the async boundary
-async.void(function()
+coop.spawn(function()
   while true do
-    -- Wait for a write request (blocks in async context)
-    local write_req = receiver.recv()
-
-    -- Write the file (safe because we're in async coroutine)
+    local write_req = write_queue:pop()
     write_file(write_req.path, write_req.data)
-   end
-end)()
-
--- Queue function - NON-ASYNC, safe to call from __newindex
-local function queue_write(path, data)
-  sender.send({ path = path, data = data })
-end
-
--- ============================================================================
--- WRITE ASYNC (Queues write, returns immediately)
--- ============================================================================
+  end
+end)
 
 function FileCache:write_async(path, data)
-  -- Queue the write (non-async, safe from any context)
   local content
   if type(data) == "table" then
     content = data.content
@@ -133,12 +103,13 @@ function FileCache:write_async(path, data)
     return false
   end
 
-  queue_write(path, content)
+  write_queue:push({ path = path, data = content })
   return true
 end
 
 return {
   new = FileCache.new,
-  -- Queue function exposed for direct access if needed
-  _queue_write = queue_write,
+  _queue_write = function(path, data)
+    write_queue:push({ path = path, data = data })
+  end,
 }

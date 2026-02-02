@@ -1,4 +1,4 @@
-local async = require("plenary.async")
+local coop = require("coop")
 
 local M = {}
 
@@ -19,7 +19,7 @@ local function debounced_reload(ctx, new_start_dir)
 
   ctx._watchers.debounce_timer = vim.fn.timer_start(debounce_ms, function()
     ctx._watchers.debounce_timer = nil
-    async.void(function()
+    coop.spawn(function()
       local main = require("nvim-project-config")
       main.clear(ctx)
       if new_start_dir then
@@ -33,7 +33,7 @@ local function debounced_reload(ctx, new_start_dir)
           wait_fn()
         end
       end
-    end)()
+    end)
   end)
 end
 
@@ -42,7 +42,7 @@ local function setup_config_dir_watcher(ctx)
     return
   end
 
-  local handle = vim.loop.new_fs_event()
+  local handle = vim.uv.new_fs_event()
   if not handle then
     return
   end

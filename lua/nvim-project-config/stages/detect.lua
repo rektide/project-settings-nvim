@@ -2,8 +2,7 @@
 --- Checks for file/directory existence and triggers on_match callback
 --- @module nvim-project-config.stages.detect
 
-local async = require("plenary.async")
-local uv = async.uv
+local uv = require("coop.uv")
 local matchers = require("nvim-project-config.matchers")
 
 --- Create a detection stage
@@ -54,7 +53,7 @@ local function detect(opts)
       if ctx._pipeline_stopped then
         return
       end
-      
+
       local path = input_rx.recv()
       if path == nil or path == pipeline.DONE then
         break

@@ -1,18 +1,15 @@
-local async = require("plenary.async")
-
--- Test that JSON files are actually loaded from ~/.config/astrovim-git/projects/
+local coop = require("coop")
 
 describe("JSON loading verification", function()
   it("loads JSON files from astrovim-git/projects directory", function()
     local npc = require("nvim-project-config")
 
-    -- Setup with astrovim projects directory
     npc.setup({
       config_dir = "/home/rektide/.config/astrovim-git/projects",
       loading = { on = "manual" },
     })
 
-    async.run(function()
+    coop.spawn(function()
       local awaiter = npc.load_await()
       local ctx = awaiter()
 
@@ -21,7 +18,6 @@ describe("JSON loading verification", function()
       print("Config dir:", ctx.config_dir or "nil")
       print()
 
-      -- Check if JSON files were loaded
       print("=== ctx.json contents ===")
       if ctx.json then
         local count = 0
@@ -31,7 +27,6 @@ describe("JSON loading verification", function()
         end
         print(string.format("Total entries: %d", count))
 
-        -- Verify some expected files exist
         assert.is_not_nil(ctx.json["nvim-project-config"], "nvim-project-config.json should be loaded")
         assert.is_not_nil(ctx.json.repo, "repo.json should be loaded")
         assert.is_not_nil(ctx.json.plugin, "plugin.json should be loaded")
@@ -52,7 +47,7 @@ describe("JSON loading verification", function()
       loading = { on = "manual" },
     })
 
-    async.run(function()
+    coop.spawn(function()
       local awaiter = npc.load_await()
       local ctx = awaiter()
 
@@ -60,7 +55,6 @@ describe("JSON loading verification", function()
       if ctx.json and ctx.json["nvim-project-config"] then
         print("Content:", vim.inspect(ctx.json["nvim-project-config"]))
 
-        -- Verify the actual content
         local content = ctx.json["nvim-project-config"]
         assert.is_not_nil(content.color_persist, "color_persist field should exist")
         assert.equals("blink", content.color_persist, "color_persist should be 'blink'")
@@ -80,7 +74,7 @@ describe("JSON loading verification", function()
       loading = { on = "manual" },
     })
 
-    async.run(function()
+    coop.spawn(function()
       local awaiter = npc.load_await()
       local ctx = awaiter()
 
@@ -107,13 +101,12 @@ describe("JSON loading verification", function()
       loading = { on = "manual" },
     })
 
-    async.run(function()
+    coop.spawn(function()
       local awaiter = npc.load_await()
       local ctx = awaiter()
 
       print("\n=== Verifying multiple JSON files loaded ===")
 
-      -- List files that should exist
       local expected_files = {
         "nvim-project-config",
         "repo",
@@ -143,7 +136,6 @@ describe("JSON loading verification", function()
 
       print(string.format("\nLoaded %d/%d expected files", loaded_count, #expected_files))
 
-      -- At least the key files should be loaded
       assert.is_true(
         ctx.json ~= nil and ctx.json.nvim_project_config ~= nil and ctx.json.repo ~= nil,
         "At least nvim-project-config.json and repo.json should be loaded"

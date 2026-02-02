@@ -1,14 +1,28 @@
 describe("detect stage", function()
-  require("plenary.async").tests.add_to_env()
   local detect = require("nvim-project-config.stages.detect")
   local pipeline = require("nvim-project-config.pipeline")
-  local async = require("plenary.async")
+  local coop = require("coop")
+  local MpscQueue = require("coop.mpsc-queue").MpscQueue
+
+  local function create_channel()
+    local queue = MpscQueue.new()
+    local sender = {
+      send = function(value)
+        queue:push(value)
+      end,
+    }
+    local receiver = {
+      recv = function()
+        return queue:pop()
+      end,
+    }
+    return sender, receiver
+  end
 
   describe("string matcher", function()
     it("matches when file exists in directory", function(done)
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/")
       input_tx.send(pipeline.DONE)
@@ -22,11 +36,11 @@ describe("detect stage", function()
         end,
       })
 
-      async.run(function()
+      coop.spawn(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
+      coop.spawn(function()
         local path = output_rx.recv()
         assert.equals("/", path)
 
@@ -38,9 +52,8 @@ describe("detect stage", function()
     end)
 
     it("does not match when file does not exist", function(done)
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/does/not/exist")
       input_tx.send(pipeline.DONE)
@@ -54,11 +67,11 @@ describe("detect stage", function()
         end,
       })
 
-      async.run(function()
+      coop.spawn(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
+      coop.spawn(function()
         local path = output_rx.recv()
         assert.equals("/does/not/exist", path)
 
@@ -70,9 +83,8 @@ describe("detect stage", function()
 
   describe("table matcher", function()
     it("matches if any file exists (OR logic)", function(done)
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/")
       input_tx.send(pipeline.DONE)
@@ -86,11 +98,11 @@ describe("detect stage", function()
         end,
       })
 
-      async.run(function()
+      coop.spawn(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
+      coop.spawn(function()
         local path = output_rx.recv()
         assert.equals("/", path)
 
@@ -102,9 +114,8 @@ describe("detect stage", function()
     end)
 
     it("matches with mixed string and function matchers", function(done)
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/")
       input_tx.send(pipeline.DONE)
@@ -123,11 +134,11 @@ describe("detect stage", function()
         end,
       })
 
-      async.run(function()
+      coop.spawn(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
+      coop.spawn(function()
         local path = output_rx.recv()
         assert.equals("/", path)
 
@@ -141,9 +152,8 @@ describe("detect stage", function()
 
   describe("function matcher", function()
     a.it("calls function matcher with path", function()
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/test/path")
       input_tx.send(pipeline.DONE)
@@ -173,9 +183,8 @@ describe("detect stage", function()
 
   describe("nil matcher", function()
     a.it("always matches", function()
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/any/path")
       input_tx.send(pipeline.DONE)
@@ -202,9 +211,8 @@ describe("detect stage", function()
 
   describe("on_match callback", function()
     a.it("is called with ctx and path when matched", function()
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/")
       input_tx.send(pipeline.DONE)
@@ -234,9 +242,8 @@ describe("detect stage", function()
 
   describe("pipeline flow", function()
     it("forwards path to output even when not matched", function(done)
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/some/path")
       input_tx.send(pipeline.DONE)
@@ -248,11 +255,11 @@ describe("detect stage", function()
         end,
       })
 
-      async.run(function()
+      coop.spawn(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
+      coop.spawn(function()
         local path = output_rx.recv()
         assert.equals("/some/path", path)
         done()
@@ -260,9 +267,8 @@ describe("detect stage", function()
     end)
 
     it("sends DONE signal to output", function(done)
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/test")
       input_tx.send(pipeline.DONE)
@@ -274,11 +280,11 @@ describe("detect stage", function()
         end,
       })
 
-      async.run(function()
+      coop.spawn(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
+      coop.spawn(function()
         local path = output_rx.recv()
         assert.equals("/test", path)
 
@@ -291,9 +297,8 @@ describe("detect stage", function()
 
   describe("pipeline stopped", function()
     it("exits immediately when _pipeline_stopped is true", function(done)
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/test")
 
@@ -304,11 +309,11 @@ describe("detect stage", function()
         end,
       })
 
-      async.run(function()
+      coop.spawn(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
+      coop.spawn(function()
         local path = output_rx.recv()
         assert.is_nil(path)
         done()

@@ -1,5 +1,5 @@
 describe("FileCache", function()
-  local uv = vim.loop
+  local uv = vim.uv
   local tmp_dir
   local file_cache
 

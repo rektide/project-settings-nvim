@@ -1,14 +1,28 @@
 describe("walk stage", function()
   local walk = require("nvim-project-config.stages.walk")
   local pipeline = require("nvim-project-config.pipeline")
-  local async = require("plenary.async")
-  local uv = async.uv
+  local coop = require("coop")
+  local MpscQueue = require("coop.mpsc-queue").MpscQueue
+
+  local function create_channel()
+    local queue = MpscQueue.new()
+    local sender = {
+      send = function(value)
+        queue:push(value)
+      end,
+    }
+    local receiver = {
+      recv = function()
+        return queue:pop()
+      end,
+    }
+    return sender, receiver
+  end
 
   describe("upward traversal", function()
     it("walks from start directory to filesystem root", function(done)
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/home/user/project")
       input_tx.send(pipeline.DONE)
@@ -16,11 +30,11 @@ describe("walk stage", function()
       local ctx = { _pipeline_stopped = false }
       local stage = walk({ direction = "up" })
 
-      async.run(function()
+      coop.spawn(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
+      coop.spawn(function()
         local paths = {}
         while true do
           local path = output_rx.recv()
@@ -37,9 +51,8 @@ describe("walk stage", function()
     end)
 
     it("stops at filesystem root", function(done)
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/")
       input_tx.send(pipeline.DONE)
@@ -47,11 +60,11 @@ describe("walk stage", function()
       local ctx = { _pipeline_stopped = false }
       local stage = walk({ direction = "up" })
 
-      async.run(function()
+      coop.spawn(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
+      coop.spawn(function()
         local paths = {}
         while true do
           local path = output_rx.recv()
@@ -70,9 +83,8 @@ describe("walk stage", function()
   describe("matcher filtering", function()
     it("filters directories using string matcher", function(done)
       local matchers = require("nvim-project-config.matchers")
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/home/user/project-with-marker/.git")
       input_tx.send(pipeline.DONE)
@@ -80,11 +92,11 @@ describe("walk stage", function()
       local ctx = { _pipeline_stopped = false }
       local stage = walk({ direction = "up", matcher = ".git" })
 
-      async.run(function()
+      coop.spawn(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
+      coop.spawn(function()
         local paths = {}
         while true do
           local path = output_rx.recv()
@@ -100,9 +112,8 @@ describe("walk stage", function()
     end)
 
     it("filters directories using function matcher", function(done)
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/home/user")
       input_tx.send("/home")
@@ -116,11 +127,11 @@ describe("walk stage", function()
         end,
       })
 
-      async.run(function()
+      coop.spawn(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
+      coop.spawn(function()
         local paths = {}
         while true do
           local path = output_rx.recv()
@@ -138,9 +149,8 @@ describe("walk stage", function()
 
   describe("non-directory input", function()
     it("starts from parent directory if input is a file", function(done)
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/home/user/project/file.lua")
       input_tx.send(pipeline.DONE)
@@ -148,11 +158,11 @@ describe("walk stage", function()
       local ctx = { _pipeline_stopped = false }
       local stage = walk({ direction = "up" })
 
-      async.run(function()
+      coop.spawn(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
+      coop.spawn(function()
         local paths = {}
         while true do
           local path = output_rx.recv()
@@ -171,20 +181,19 @@ describe("walk stage", function()
 
   describe("pipeline stopped", function()
     it("exits immediately when _pipeline_stopped is true", function(done)
-      local channel = require("plenary.async.control").channel
-      local input_tx, input_rx = channel.mpsc()
-      local output_tx, output_rx = channel.mpsc()
+      local input_tx, input_rx = create_channel()
+      local output_tx, output_rx = create_channel()
 
       input_tx.send("/home/user/project")
 
       local ctx = { _pipeline_stopped = true }
       local stage = walk({ direction = "up" })
 
-      async.run(function()
+      coop.spawn(function()
         stage(ctx, input_rx, output_tx)
       end)
 
-      async.run(function()
+      coop.spawn(function()
         local path = output_rx.recv()
         assert.is_nil(path)
         done()

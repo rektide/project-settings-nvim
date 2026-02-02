@@ -1,7 +1,7 @@
 --- Main entry point for nvim-project-config
 --- @module nvim-project-config
 
-local async = require("plenary.async")
+local coop = require("coop")
 local pipeline = require("nvim-project-config.pipeline")
 local watchers = require("nvim-project-config.watchers")
 local dir_cache = require("nvim-project-config.cache.directory")
@@ -115,7 +115,6 @@ local function deep_merge(base, override)
 end
 
 function M.setup(opts)
-  -- Prevent multiple initializations
   if M._initialized then
     return
   end
@@ -157,24 +156,24 @@ function M.setup(opts)
 
   local loading_on = config.loading.on
   if loading_on == "startup" then
-    async.void(function()
+    coop.spawn(function()
       local wait_fn = M.load_await()
       if wait_fn then
         wait_fn()
       end
-    end)()
+    end)
   elseif loading_on == "lazy" then
     local augroup = vim.api.nvim_create_augroup("nvim_project_config_lazy", { clear = true })
     vim.api.nvim_create_autocmd("BufEnter", {
       group = augroup,
       once = true,
       callback = function()
-        async.void(function()
+        coop.spawn(function()
           local wait_fn = M.load_await()
           if wait_fn then
             wait_fn()
           end
-        end)()
+        end)
       end,
     })
   else
@@ -195,28 +194,26 @@ function M.load(override_ctx)
 end
 
 function M.load_await(override_ctx)
-  local channel = require("plenary.async.control").channel
+  local future = coop.Future.new()
 
   local ctx = override_ctx or M.ctx
   if not ctx then
     return nil
   end
 
-  local tx, rx = channel.oneshot()
-
   local old_on_load = ctx.on_load
   ctx.on_load = function(loaded_ctx)
     if old_on_load then
       old_on_load(loaded_ctx)
     end
-    tx(loaded_ctx)
+    future:complete(loaded_ctx)
   end
 
   local start_dir = ctx.loading and ctx.loading.start_dir or vim.fn.getcwd()
   pipeline.run(ctx, ctx.pipeline, start_dir)
 
   return function()
-    return rx()
+    return future()
   end
 end
 

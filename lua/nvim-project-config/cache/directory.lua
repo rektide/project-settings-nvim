@@ -1,5 +1,5 @@
-local async = require("plenary.async")
-local uv = async.uv
+local coop = require("coop")
+local uv = require("coop.uv")
 
 local M = {}
 
@@ -14,18 +14,17 @@ function M.new(opts)
   return self
 end
 
--- Pure coroutine helper (must be called from within async context)
 local function read_directory_coro(path)
-  local fd = uv.fs_opendir(path, nil, 100)
-  if not fd then
+  local err, fd = uv.fs_opendir(path, 100)
+  if err or not fd then
     return nil
   end
 
   local all_entries = {}
 
   while true do
-    local entries = uv.fs_readdir(fd)
-    if not entries then
+    local readdir_err, entries = uv.fs_readdir(fd)
+    if readdir_err or not entries then
       break
     end
     for _, entry in ipairs(entries) do
@@ -37,10 +36,9 @@ local function read_directory_coro(path)
   return all_entries
 end
 
--- Primary async API (call from within async.run or coroutine context)
 function DirectoryCache:get_async(path)
-  local stat = uv.fs_stat(path)
-  if not stat or stat.type ~= "directory" then
+  local err, stat = uv.fs_stat(path)
+  if err or not stat or stat.type ~= "directory" then
     return nil
   end
 
@@ -63,11 +61,16 @@ function DirectoryCache:get_async(path)
   return entries
 end
 
--- Callback API (safe to call from non-async context)
 function DirectoryCache:get(path, callback)
-  async.run(function()
-    return self:get_async(path)
-  end, callback)
+  local future = coop.Future.new()
+  local task = coop.spawn(function()
+    local result = self:get_async(path)
+    if callback then
+      callback(result)
+    end
+    future:complete(result)
+  end)
+  return task
 end
 
 function DirectoryCache:invalidate(path)
