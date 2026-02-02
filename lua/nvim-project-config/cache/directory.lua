@@ -1,4 +1,5 @@
 local async = require("plenary.async")
+local uv = async.uv
 
 local M = {}
 
@@ -13,17 +14,32 @@ function M.new(opts)
   return self
 end
 
-function DirectoryCache:get(path, callback)
-  async.run(function()
-    local entries = self:_get_async(path)
-    if callback then
-      callback(entries)
+-- Pure coroutine helper (must be called from within async context)
+local function read_directory_coro(path)
+  local fd = uv.fs_opendir(path, nil, 100)
+  if not fd then
+    return nil
+  end
+
+  local all_entries = {}
+
+  while true do
+    local entries = uv.fs_readdir(fd)
+    if not entries then
+      break
     end
-  end)
+    for _, entry in ipairs(entries) do
+      table.insert(all_entries, entry)
+    end
+  end
+
+  uv.fs_closedir(fd)
+  return all_entries
 end
 
-function DirectoryCache:_get_async(path)
-  local stat = async.uv.fs_stat(path)
+-- Primary async API (call from within async.run or coroutine context)
+function DirectoryCache:get_async(path)
+  local stat = uv.fs_stat(path)
   if not stat or stat.type ~= "directory" then
     return nil
   end
@@ -35,7 +51,7 @@ function DirectoryCache:_get_async(path)
     return cached.entries
   end
 
-  local entries = self:_read_directory(path)
+  local entries = read_directory_coro(path)
   if entries then
     self._cache[path] = {
       path = path,
@@ -47,26 +63,11 @@ function DirectoryCache:_get_async(path)
   return entries
 end
 
-function DirectoryCache:_read_directory(path)
-  local fd, err = async.uv.fs_opendir(path, nil, 100)
-  if not fd then
-    return nil
-  end
-
-  local all_entries = {}
-
-  while true do
-    local entries = async.uv.fs_readdir(fd)
-    if not entries then
-      break
-    end
-    for _, entry in ipairs(entries) do
-      table.insert(all_entries, entry)
-    end
-  end
-
-  async.uv.fs_closedir(fd)
-  return all_entries
+-- Callback API (safe to call from non-async context)
+function DirectoryCache:get(path, callback)
+  async.run(function()
+    return self:get_async(path)
+  end, callback)
 end
 
 function DirectoryCache:invalidate(path)

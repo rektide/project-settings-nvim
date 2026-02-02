@@ -12,128 +12,110 @@ function FileCache.new(opts)
   }, FileCache)
 end
 
+-- Pure coroutine helpers (must be called from within async context)
+local function read_file_coro(path)
+  local stat = uv.fs_stat(path)
+  if not stat then
+    return nil
+  end
+
+  local fd = uv.fs_open(path, "r", 438)
+  if not fd then
+    return nil
+  end
+
+  local content = uv.fs_read(fd, stat.size, 0)
+  uv.fs_close(fd)
+
+  if not content then
+    return nil
+  end
+
+  return {
+    path = path,
+    content = content,
+    mtime = stat.mtime.sec,
+    json = nil,
+  }
+end
+
+local function write_file_coro(path, content)
+  local fd = uv.fs_open(path, "w", 438)
+  if not fd then
+    return false, nil
+  end
+
+  local _, write_err = uv.fs_write(fd, content, 0)
+  uv.fs_close(fd)
+
+  if write_err then
+    return false, nil
+  end
+
+  local stat = uv.fs_stat(path)
+  return true, stat and stat.mtime.sec or nil
+end
+
+local function get_mtime_coro(path)
+  local stat = uv.fs_stat(path)
+  return stat and stat.mtime.sec or nil
+end
+
+-- Primary async API (call from within async.run or coroutine context)
 function FileCache:get_async(path)
-  local tx, rx = async.control.channel.oneshot()
-  self:get(path, function(entry)
-    tx(entry)
-  end)
-  return rx()
-end
-
-function FileCache:write_async(path, data)
-  local tx, rx = async.control.channel.oneshot()
-  self:write(path, data, function(success)
-    tx(success)
-  end)
-  return rx()
-end
-
-local function read_file_async(path, callback)
-  async.run(function()
-    local stat, stat_err = uv.fs_stat(path)
-    if stat_err or not stat then
-      callback(nil)
-      return
-    end
-
-    local fd, open_err = uv.fs_open(path, "r", 438)
-    if open_err or not fd then
-      callback(nil)
-      return
-    end
-
-    local content, read_err = uv.fs_read(fd, stat.size, 0)
-    uv.fs_close(fd)
-
-    if read_err then
-      callback(nil)
-      return
-    end
-
-    callback({
-      path = path,
-      content = content,
-      mtime = stat.mtime.sec,
-      json = nil,
-    })
-  end)
-end
-
-local function write_file_async(path, content, callback)
-  async.run(function()
-    local fd, open_err = uv.fs_open(path, "w", 438)
-    if open_err or not fd then
-      callback(false)
-      return
-    end
-
-    local _, write_err = uv.fs_write(fd, content, 0)
-    uv.fs_close(fd)
-
-    if write_err then
-      callback(false)
-      return
-    end
-
-    local stat = uv.fs_stat(path)
-    callback(true, stat and stat.mtime.sec or nil)
-  end)
-end
-
-local function get_mtime_async(path, callback)
-  async.run(function()
-    local stat = uv.fs_stat(path)
-    callback(stat and stat.mtime.sec or nil)
-  end)
-end
-
-function FileCache:get(path, callback)
   local cached = self._cache[path]
 
   if not cached or not self.trust_mtime then
-    read_file_async(path, function(entry)
-      if entry then
-        self._cache[path] = entry
-      end
-      callback(entry)
-    end)
-    return
+    local entry = read_file_coro(path)
+    if entry then
+      self._cache[path] = entry
+    end
+    return entry
   end
 
-  get_mtime_async(path, function(mtime)
-    if mtime and mtime == cached.mtime then
-      callback(cached)
-    else
-      read_file_async(path, function(entry)
-        if entry then
-          self._cache[path] = entry
-        else
-          self._cache[path] = nil
-        end
-        callback(entry)
-      end)
-    end
-  end)
+  local mtime = get_mtime_coro(path)
+  if mtime and mtime == cached.mtime then
+    return cached
+  end
+
+  local entry = read_file_coro(path)
+  if entry then
+    self._cache[path] = entry
+  else
+    self._cache[path] = nil
+  end
+  return entry
+end
+
+function FileCache:write_async(path, data)
+  local content = data.content
+  if not content then
+    return false
+  end
+
+  local ok, mtime = write_file_coro(path, content)
+  if ok and mtime then
+    self._cache[path] = {
+      path = path,
+      content = content,
+      mtime = mtime,
+      json = data.json or nil,
+    }
+  end
+  return ok
+end
+
+-- Callback API (safe to call from non-async context)
+function FileCache:get(path, callback)
+  async.run(function()
+    return self:get_async(path)
+  end, callback)
 end
 
 function FileCache:write(path, data, callback)
-  local content = data.content
-  if not content then
-    callback(false)
-    return
-  end
-
-  write_file_async(path, content, function(success, mtime)
-    if success and mtime then
-      self._cache[path] = {
-        path = path,
-        content = content,
-        mtime = mtime,
-        json = data.json or nil,
-      }
-    end
-    callback(success)
-  end)
+  async.run(function()
+    return self:write_async(path, data)
+  end, callback)
 end
 
 function FileCache:invalidate(path)
