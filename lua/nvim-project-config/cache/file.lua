@@ -44,32 +44,22 @@ local function read_file(path)
 end
 
 local function write_file(path, content)
-  print("[NPC] write_file START: " .. path)
-  print("[NPC] content len: " .. #content)
-
   -- plenary.async.uv returns (err, fd) NOT (fd, err)!
   local err, fd = uv.fs_open(path, "w", 438)
-  print("[NPC] fs_open result - err: " .. tostring(err) .. " fd: " .. tostring(fd))
 
   if err then
-    print("[NPC] ERROR: Failed to open file - " .. tostring(err))
     return false, "Failed to open file: " .. tostring(err)
   end
 
   -- uv.fs_write also returns (err, bytes_written)
   local write_err, write_result = uv.fs_write(fd, content, -1)
-  print("[NPC] fs_write result - err: " .. tostring(write_err) .. " written: " .. tostring(write_result))
-
   uv.fs_close(fd)
-  print("[NPC] fd closed")
 
   if write_err then
-    print("[NPC] ERROR: Write failed - " .. tostring(write_err))
     return false, "Write error: " .. tostring(write_err)
   end
 
   local stat = uv.fs_stat(path)
-  print("[NPC] file stat: " .. tostring(stat and stat.mtime.sec))
   return true, stat and stat.mtime.sec or nil
 end
 
@@ -112,21 +102,17 @@ local sender, receiver = channel.mpsc()
 -- Consumer coroutine - runs in async context, safe to use uv.fs_write
 -- Each write is processed individually; the channel handles the async boundary
 async.void(function()
-  print("[NPC] Async write consumer started")
   while true do
     -- Wait for a write request (blocks in async context)
-    print("[NPC] Waiting for write request...")
     local write_req = receiver.recv()
-    print("[NPC] Got write request: " .. write_req.path)
 
-    -- Write the file (safe because we're in an async coroutine)
+    -- Write the file (safe because we're in async coroutine)
     write_file(write_req.path, write_req.data)
-  end
+   end
 end)()
 
 -- Queue function - NON-ASYNC, safe to call from __newindex
 local function queue_write(path, data)
-  print("[NPC] queue_write: " .. path .. " (len: " .. #data .. ")")
   sender.send({ path = path, data = data })
 end
 

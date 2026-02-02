@@ -28,7 +28,6 @@ local function write_json(ctx)
   end
 
   local encoded = vim.json.encode(raw_json)
-  vim.notify("write_json: encoding " .. #raw_json .. " keys, output " .. #encoded .. " bytes", vim.log.levels.INFO)
 
   if ctx.file_cache then
     local success = ctx.file_cache:write_async(ctx._last_project_json, {

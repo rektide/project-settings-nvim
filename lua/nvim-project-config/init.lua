@@ -37,14 +37,12 @@ local function make_reactive_table(on_change, parent_path)
       return data[key]
     end,
     __newindex = function(_, key, value)
-      vim.notify("Reactive table __newindex: key=" .. tostring(key) .. " value=" .. tostring(value), vim.log.levels.INFO)
       if type(value) == "table" and getmetatable(value) == nil then
         local path = vim.list_extend({}, parent_path)
         table.insert(path, key)
         value = make_reactive_table(on_change, path)
       end
       data[key] = value
-      vim.notify("Calling on_change()", vim.log.levels.INFO)
       on_change()
     end,
   }
@@ -118,7 +116,6 @@ end
 function M.setup(opts)
   -- Prevent multiple initializations
   if M._initialized then
-    vim.notify("nvim-project-config already initialized, skipping setup", vim.log.levels.WARN)
     return
   end
 
