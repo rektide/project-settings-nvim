@@ -102,9 +102,12 @@ local sender, receiver = channel.mpsc()
 -- Consumer coroutine - runs in async context, safe to use uv.fs_write
 -- Each write is processed individually; the channel handles the async boundary
 async.void(function()
+  vim.notify("Async write consumer started", vim.log.levels.INFO)
   while true do
     -- Wait for a write request (blocks in async context)
+    vim.notify("Waiting for write request...", vim.log.levels.INFO)
     local write_req = receiver.recv()
+    vim.notify("Got write request: " .. write_req.path, vim.log.levels.INFO)
 
     -- Write the file (safe because we're in async coroutine)
     local ok, err = write_file(write_req.path, write_req.data)
