@@ -70,3 +70,54 @@ end)()
 ✅ File recreation after deletion works
 ✅ No debug spam in production
 ✅ Can read back from reactive table
+
+## Vital Insight: Print/Logging Works in Async Context
+
+### Discovery
+During debugging, I used `print()` statements inside the async consumer coroutine and they appeared in Neovim output immediately:
+
+```lua
+async.void(function()
+  print("[NPC] Async write consumer started")  -- ✅ THIS WORKS!
+  while true do
+    local write_req = receiver.recv()
+    print("[NPC] Got write request: " .. write_req.path)  -- ✅ THIS WORKS!
+    write_file(write_req.path, write_req.data)
+  end
+end)()
+```
+
+### Why This Works
+- `print()` is a **synchronous** operation that writes to stdout immediately
+- It does **not yield** the coroutine
+- It executes immediately in whatever context (async or sync)
+
+### Why This Matters
+1. **Debugging is possible** - We can add print() statements anywhere in async code
+2. **Async context WAS working** - The coroutine wasn't dead, it was just stuck on uv functions
+3. **Problem isolation** - Since print() worked, we knew the issue was specifically with uv.fs_open/fs_write
+
+### What Failed
+The async functions themselves:
+```lua
+local err, fd = uv.fs_open(path, "w", 438)  -- ❌ Hung here
+```
+
+This is because `plenary.async.uv` wrapper was being used incorrectly - wrong return value order meant it never properly opened the file.
+
+### Debugging Pattern
+```lua
+-- ✅ Working pattern for debugging async code:
+async.run(function()
+  print("Step 1: Starting")  -- Immediate output
+  local err, result = some_async_call()  -- Hangs here
+  print("Step 2: Done")  -- Never prints if step 1 hangs
+end, function() print("Callback") end)
+
+-- If you see "Step 1" but not "Step 2", you know some_async_call() hung
+-- If you never see "Callback", async.run() itself hung
+```
+
+### Key Takeaway
+**Async coroutines in Neovim can use print() for debugging** - this makes debugging async issues much easier than I initially thought. The problem was never that we couldn't log - the problem was specific uv function calls with incorrect return value handling.
+
