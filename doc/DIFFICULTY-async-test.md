@@ -137,7 +137,7 @@ end
 For now, focusing on:
 1. **Non-async tests**: Cache structure, clear_all, invalidate, options
 2. **Callback-based tests**: Test actual file/directory operations with `done()`
-3. **Defer async testing**: Once non-async tests pass, investigate plenary's async test utilities
+3. **Skip problematic async.run() + done() tests**: These are flaky and timeout
 
 This gives us:
 - Coverage of cache structure and management
@@ -148,6 +148,32 @@ Missing:
 - Direct testing of `get_async()` / `write_async()` methods
 - Testing of oneshot channel pattern
 - Testing of async/await behavior
+- Reliable async stage testing
+
+## Current Test Status (2024-02-01)
+
+**Passing consistently:**
+- test/unit/cache/file_spec.lua: All non-async and callback-based tests
+- test/unit/cache/directory_spec.lua: All non-async and callback-based tests
+- test/unit/matchers_spec.lua: 17/17 passing (simple callback tests)
+- test/unit/stages/walk_spec.lua: 6/6 passing
+- test/unit/stages/detect_spec.lua: 7/10 passing (non-async tests)
+- test/unit/stages_and_executors_spec.lua: 10/10 passing (structure tests)
+- test/unit/watchers_spec.lua: 8/8 passing
+- test/unit/init_spec.lua: 51/51 passing
+- test/integration/basic_spec.lua: 12/12 passing
+
+**Flaky/failing:**
+- test/unit/stages/detect_spec.lua: 3/10 tests fail with "done is nil" error
+  - "function matcher calls function matcher with path"
+  - "nil matcher always matches"
+  - "on_match callback is called with ctx and path when matched"
+
+**Root cause of flaky tests:**
+The pattern `async.run(function() ... done() end)` is fundamentally broken:
+- `done()` callback is not properly captured in async.run() closure
+- Error: "attempt to call upvalue 'done' (a nil value)"
+- Tests sometimes pass (race condition) but usually timeout or fail
 
 ## Next Steps
 
